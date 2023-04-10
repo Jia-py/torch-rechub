@@ -11,7 +11,7 @@ from collections import Counter
 
 
 def match_evaluation(user_embedding, item_embedding, test_user, all_item, user_col='101', item_col='205',
-                     raw_id_maps="examples/ranking/data/ali-ccp/saved/raw_id_maps.npy", topk=10):
+                     raw_id_maps="/root/code/torch-rechub/examples/ranking/data/ali-ccp/saved/raw_id_maps.npy", topk=10):
     print("evaluate embedding matching on test data")
     annoy = Annoy(n_trees=10)
     annoy.fit(item_embedding)

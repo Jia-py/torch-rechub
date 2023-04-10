@@ -163,3 +163,5 @@ cython_debug/
 .idea/
 
 */saved/*
+examples/ranking/data/ali-ccp/saved/data_cache.npy
+examples/ranking/data/ali-ccp/saved/raw_id_maps.npy

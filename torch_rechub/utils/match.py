@@ -64,8 +64,8 @@ def negative_sample(items_cnt_order, ratio, method_id=0):
 def generate_seq_feature_match(data,
                                user_col,
                                item_col,
-                               time_col,
-                               item_attribute_cols=None,
+                            #    time_col,
+                               cross_features=None,
                                sample_method=0,
                                mode=0,
                                neg_ratio=0,
@@ -91,14 +91,14 @@ def generate_seq_feature_match(data,
     Returns:
         pd.DataFrame: split train and test data with sequence features.
     """
-    if item_attribute_cols is None:
-        item_attribute_cols = []
+    if cross_features is None:
+        cross_features = []
     if mode == 2:  # list wise learning
         assert neg_ratio > 0, 'neg_ratio must be greater than 0 when list-wise learning'
     elif mode == 1:  # pair wise learning
         neg_ratio = 1
     print("preprocess data")
-    data.sort_values(time_col, inplace=True)  #sort by time from old to new
+    # data.sort_values(time_col, inplace=True)  #sort by time from old to new
     train_set, test_set = [], []
     n_cold_user = 0
 
@@ -107,18 +107,22 @@ def generate_seq_feature_match(data,
     neg_list = negative_sample(items_cnt_order, ratio=data.shape[0] * neg_ratio, method_id=sample_method)
     neg_idx = 0
     for uid, hist in tqdm.tqdm(data.groupby(user_col), desc='generate sequence features'):
+        # 取出用户的历史items
         pos_list = hist[item_col].tolist()
         if len(pos_list) < min_item:  #drop this user when his pos items < min_item
             n_cold_user += 1
             continue
 
+        split_index = int((len(pos_list)-1) * 0.8)
+
         for i in range(1, len(pos_list)):
-            hist_item = pos_list[:i]
-            sample = [uid, pos_list[i], hist_item, len(hist_item)]
-            if len(item_attribute_cols) > 0:
-                for attr_col in item_attribute_cols:  #the history of item attribute features
-                    sample.append(hist[attr_col].tolist()[:i])
-            if i != len(pos_list) - 1:
+            # hist_item = pos_list[:i]
+            # sample = [uid, pos_list[i], hist_item, len(hist_item)]
+            sample = [uid, pos_list[i]]
+            if len(cross_features) > 0:
+                for attr_col in cross_features:  #the history of item attribute features
+                    sample.append(hist[attr_col].tolist()[i])
+            if i < split_index:
                 if mode == 0:  #point-wise, the last col is label_col, include label 0 and 1
                     last_col = "label"
                     train_set.append(sample + [1])
@@ -149,11 +153,11 @@ def generate_seq_feature_match(data,
     print("n_train: %d, n_test: %d" % (len(train_set), len(test_set)))
     print("%d cold start user droped " % (n_cold_user))
 
-    attr_hist_col = ["hist_" + col for col in item_attribute_cols]
+    attr_hist_col = [col for col in cross_features]
     df_train = pd.DataFrame(train_set,
-                            columns=[user_col, item_col, "hist_" + item_col, "histlen_" + item_col] + attr_hist_col + [last_col])
+                            columns=[user_col, item_col] + attr_hist_col + [last_col])
     df_test = pd.DataFrame(test_set,
-                           columns=[user_col, item_col, "hist_" + item_col, "histlen_" + item_col] + attr_hist_col + [last_col])
+                           columns=[user_col, item_col] + attr_hist_col + [last_col])
 
     return df_train, df_test
 

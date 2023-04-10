@@ -35,6 +35,8 @@ class YoutubeDNN(torch.nn.Module):
         self.user_mlp = MLP(self.user_dims, output_layer=False, **user_params)
         self.mode = None
 
+        self.linear1 = torch.nn.Linear(5*16, 16)
+
     def forward(self, x):
         user_embedding = self.user_tower(x)
         item_embedding = self.item_tower(x)
@@ -44,9 +46,11 @@ class YoutubeDNN(torch.nn.Module):
             return item_embedding
 
         # calculate cosine score
-        y = torch.mul(user_embedding, item_embedding).sum(dim=2)
-        y = y / self.temperature
-        return y
+        pos_embedding = item_embedding[:, 0, :]
+        neg_embedding = item_embedding[:, 1, :]
+        pos_score = torch.mul(user_embedding.squeeze(1), pos_embedding).sum(dim=1)
+        neg_score = torch.mul(user_embedding.squeeze(1), neg_embedding).sum(dim=1)
+        return pos_score, neg_score
 
     def user_tower(self, x):
         if self.mode == "item":
@@ -62,10 +66,12 @@ class YoutubeDNN(torch.nn.Module):
         if self.mode == "user":
             return None
         pos_embedding = self.embedding(x, self.item_features, squeeze_dim=False)  #[batch_size, 1, embed_dim]
+        pos_embedding = self.linear1(pos_embedding.reshape(pos_embedding.shape[0],-1)).reshape(pos_embedding.shape[0],1,16)
         pos_embedding = F.normalize(pos_embedding, p=2, dim=2)
         if self.mode == "item":  #inference embedding mode
-            return pos_embedding.squeeze(1)  #[batch_size, embed_dim]
+            return pos_embedding.reshape(pos_embedding.shape[0],-1)  #[batch_size, embed_dim]
         neg_embeddings = self.embedding(x, self.neg_item_feature,
                                         squeeze_dim=False).squeeze(1)  #[batch_size, n_neg_items, embed_dim]
+        neg_embeddings = self.linear1(neg_embeddings.reshape(neg_embeddings.shape[0],-1)).reshape(neg_embeddings.shape[0],1,16)
         neg_embeddings = F.normalize(neg_embeddings, p=2, dim=2)
         return torch.cat((pos_embedding, neg_embeddings), dim=1)  #[batch_size, 1+n_neg_items, embed_dim]
