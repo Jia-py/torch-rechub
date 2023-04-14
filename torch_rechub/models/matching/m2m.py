@@ -1,17 +1,10 @@
-"""
-Date: create on 23/05/2022
-References: 
-    paper: (RecSys'2016) Deep Neural Networks for YouTube Recommendations
-    url: https://dl.acm.org/doi/10.1145/2959100.2959190
-Authors: Mincai Lai, laimincai@shanghaitech.edu.cn
-"""
-
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from ...basic.layers import MLP, EmbeddingLayer
 
 
-class YoutubeDNN(torch.nn.Module):
+class M2M(torch.nn.Module):
     """The match model mentioned in `Deep Neural Networks for YouTube Recommendations` paper.
     It's a DSSM match model trained by global softmax loss on list-wise samples.
     Note in origin paper, it's without item dnn tower and train item embedding directly.
@@ -24,16 +17,20 @@ class YoutubeDNN(torch.nn.Module):
         temperature (float): temperature factor for similarity score, default to 1.0.
     """
 
-    def __init__(self, user_features, item_features, neg_item_feature, user_params, temperature=1.0):
+    def __init__(self, user_features, item_features, neg_item_feature, user_params):
         super().__init__()
         self.user_features = user_features
         self.item_features = item_features
         self.neg_item_feature = neg_item_feature
-        self.temperature = temperature
         self.user_dims = sum([fea.embed_dim for fea in user_features])
         self.embedding = EmbeddingLayer(user_features + item_features)
         self.user_mlp = MLP(self.user_dims, output_layer=False, **user_params)
         self.mode = None
+
+        self.user_embedding_output_dims = len(self.user_features) * 16
+        
+        self.mlp1 = MLP(16, output_layer=False, dims=[self.user_embedding_output_dims*16])
+        self.mlp2 = MLP(16, False, [16*16])
 
         self.linear1 = MLP(5*16, False, [64, 32, 16])
 
@@ -56,7 +53,17 @@ class YoutubeDNN(torch.nn.Module):
         if self.mode == "item":
             return None
         input_user = self.embedding(x, self.user_features, squeeze_dim=True)  #[batch_size, num_features*deep_dims]
-        user_embedding = self.user_mlp(input_user).unsqueeze(1)  #[batch_size, 1, embed_dim]
+        slot = input_user.reshape(input_user.shape[0], len(self.user_features), 16)[:,9,:]
+
+        weight1 = self.mlp1(slot).reshape(slot.shape[0], self.user_embedding_output_dims, 16)
+        input_user = torch.reshape(input_user, (input_user.shape[0], 1, -1))
+        user_embedding = torch.matmul(input_user, weight1).reshape(input_user.shape[0], 1, -1) # b,1,16
+
+        weight2 = self.mlp2(slot).reshape(slot.shape[0], 16, 16)
+        user_embedding = torch.matmul(user_embedding, weight2).reshape(user_embedding.shape[0], 1, -1) # b,1,16
+
+        user_embedding = user_embedding + torch.mean(input_user.reshape(input_user.shape[0], len(self.user_features), 16), dim=1, keepdim=True)
+
         user_embedding = F.normalize(user_embedding, p=2, dim=2)
         if self.mode == "user":
             return user_embedding.squeeze(1)  #inference embedding mode -> [batch_size, embed_dim]

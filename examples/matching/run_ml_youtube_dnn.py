@@ -11,7 +11,7 @@ from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 from torch_rechub.models.matching import YoutubeDNN
 from torch_rechub.trainers import MatchTrainer
 from torch_rechub.basic.features import DenseFeature, SparseFeature, SequenceFeature
-from torch_rechub.utils.match import generate_seq_feature_match, gen_model_input
+from torch_rechub.utils.match import generate_seq_feature_match_v0, gen_model_input
 from torch_rechub.utils.data import df_to_dict, MatchDataGenerator
 from movielens_utils import match_evaluation
 
@@ -40,7 +40,7 @@ def get_movielens_data(data_path, load_cache=False):
         x_train, y_train, x_test = np.load("./data/ml-1m/saved/data_cache.npy", allow_pickle=True)
     else:
         #Note: mode=2 means list-wise negative sample generate, saved in last col "neg_items"
-        df_train, df_test = generate_seq_feature_match(data,
+        df_train, df_test = generate_seq_feature_match_v0(data,
                                                        user_col,
                                                        item_col,
                                                        time_col="timestamp",

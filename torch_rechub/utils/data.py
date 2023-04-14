@@ -44,7 +44,7 @@ class MatchDataGenerator(object):
         else:  # For pair-wise model, trained without given label
             self.dataset = PredictDataset(x)
 
-    def generate_dataloader(self, x_test_user, x_all_item, batch_size, num_workers=8):
+    def generate_dataloader(self, x_test_user, x_all_item, batch_size, num_workers=16):
         train_dataloader = DataLoader(self.dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
         test_dataset = PredictDataset(x_test_user)
 

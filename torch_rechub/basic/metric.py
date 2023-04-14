@@ -150,8 +150,16 @@ def topk_metrics(y_true, y_pred, topKs=None):
 				dcg_tmp = 0
 				idcg_tmp = 0
 				for j in range(topKs[idx]):
+					# 额外加的
+					# -----------
+					if j >= len(pred_array[i]):
+						break
+					# -----------
 					if pred_array[i][j] in true_array[i]:
 						hit_tmp += 1.
+						# ------
+						break
+						# ------
 						if mrr_flag:
 							mrr_flag = False
 							mrr_tmp = 1. / (1 + j)

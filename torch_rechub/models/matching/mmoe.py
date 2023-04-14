@@ -1,17 +1,40 @@
-"""
-Date: create on 23/05/2022
-References: 
-    paper: (RecSys'2016) Deep Neural Networks for YouTube Recommendations
-    url: https://dl.acm.org/doi/10.1145/2959100.2959190
-Authors: Mincai Lai, laimincai@shanghaitech.edu.cn
-"""
-
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from ...basic.layers import MLP, EmbeddingLayer
 
+class Expert(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size):
+        super(Expert, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, output_size)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.3)
 
-class YoutubeDNN(torch.nn.Module):
+    def forward(self, x):
+        out = self.fc1(x)
+        out = self.relu(out)
+        out = self.dropout(out)
+        out = self.fc2(out)
+        return out
+
+class Tower(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size):
+        super(Tower, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, output_size)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.4)
+        self.sigmoid = nn.Sigmoid()
+    def forward(self, x):
+        out = self.fc1(x)
+        out = self.relu(out)
+        out = self.dropout(out)
+        out = self.fc2(out)
+        return out
+
+
+class MMOE(torch.nn.Module):
     """The match model mentioned in `Deep Neural Networks for YouTube Recommendations` paper.
     It's a DSSM match model trained by global softmax loss on list-wise samples.
     Note in origin paper, it's without item dnn tower and train item embedding directly.
@@ -24,16 +47,28 @@ class YoutubeDNN(torch.nn.Module):
         temperature (float): temperature factor for similarity score, default to 1.0.
     """
 
-    def __init__(self, user_features, item_features, neg_item_feature, user_params, temperature=1.0):
+    def __init__(self, user_features, item_features, neg_item_feature):
         super().__init__()
         self.user_features = user_features
         self.item_features = item_features
         self.neg_item_feature = neg_item_feature
-        self.temperature = temperature
         self.user_dims = sum([fea.embed_dim for fea in user_features])
         self.embedding = EmbeddingLayer(user_features + item_features)
-        self.user_mlp = MLP(self.user_dims, output_layer=False, **user_params)
         self.mode = None
+
+        self.user_embedding_output_dims = len(self.user_features) * 16
+
+        self.input_size = self.user_embedding_output_dims
+        self.num_experts = 8
+        self.experts_out = 64
+        self.experts_hidden = 32
+        self.towers_hidden = 64
+
+        self.experts = nn.ModuleList([Expert(self.input_size, self.experts_out, self.experts_hidden) for _ in range(self.num_experts)])
+        self.w_gates = nn.ParameterList([nn.Parameter(torch.randn(self.input_size, self.num_experts), requires_grad=True) for i in range(3)])
+        self.towers = nn.ModuleList([Tower(self.experts_out, 16, self.towers_hidden) for _ in range(3)])
+
+        self.softmax = nn.Softmax(dim=1)
 
         self.linear1 = MLP(5*16, False, [64, 32, 16])
 
@@ -55,8 +90,30 @@ class YoutubeDNN(torch.nn.Module):
     def user_tower(self, x):
         if self.mode == "item":
             return None
+        slot_id = x['301']
         input_user = self.embedding(x, self.user_features, squeeze_dim=True)  #[batch_size, num_features*deep_dims]
-        user_embedding = self.user_mlp(input_user).unsqueeze(1)  #[batch_size, 1, embed_dim]
+
+        slot1_mask = (slot_id == 1)
+        slot2_mask = (slot_id == 2)
+        slot3_mask = (slot_id == 3)
+        
+        experts_o = [e(input_user) for e in self.experts] # [b, experts_out]
+        experts_o_tensor = torch.stack(experts_o) # num_experts, b, experts_out
+
+        gates_o = [self.softmax(torch.matmul(input_user, w)) for w in self.w_gates] # [b, num_experts]
+
+        tower_input = [g.t().unsqueeze(2).expand(-1,-1,self.experts_out) * experts_o_tensor for g in gates_o] # [num_experts, b, experts_out]
+        tower_input = [torch.sum(t, dim=0) for t in tower_input] # [b, experts_out]
+
+        final_output = [t(ti) for t,ti in zip(self.towers, tower_input)] # [3, b, 16]
+
+        user_embedding = torch.zeros(input_user.shape[0], 16).to(input_user.device)
+        user_embedding = torch.where(slot1_mask.unsqueeze(1), final_output[0], user_embedding)
+        user_embedding = torch.where(slot2_mask.unsqueeze(1), final_output[1], user_embedding)
+        user_embedding = torch.where(slot3_mask.unsqueeze(1), final_output[2], user_embedding)
+
+        user_embedding = user_embedding.reshape(user_embedding.shape[0],1,16)
+
         user_embedding = F.normalize(user_embedding, p=2, dim=2)
         if self.mode == "user":
             return user_embedding.squeeze(1)  #inference embedding mode -> [batch_size, embed_dim]

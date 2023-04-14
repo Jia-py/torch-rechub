@@ -8,6 +8,7 @@ import pandas as pd
 from torch_rechub.utils.match import Annoy
 from torch_rechub.basic.metric import topk_metrics
 from collections import Counter
+import tqdm
 
 
 def match_evaluation(user_embedding, item_embedding, test_user, all_item, user_col='101', item_col='205',
@@ -38,11 +39,14 @@ def match_evaluation(user_embedding, item_embedding, test_user, all_item, user_c
             match_res[user_map[user_id]] = np.vectorize(item_map.get)(all_item[item_col][recall_item_list])
         else:
             #普通召回
-            items_idx, items_scores = annoy.query(v=user_emb, n=topk)  #the index of topk match items
+            items_idx, items_scores = annoy.query(v=user_emb, n=1000)  #the index of topk match items
             match_res[user_map[user_id]] = np.vectorize(item_map.get)(all_item[item_col][items_idx])
 
     #get ground truth
     print("generate ground truth")
+    # 额外加的，去重
+    for k in match_res:
+        match_res[k] = np.unique(match_res[k]).tolist()[:200]
 
     data = pd.DataFrame({user_col: test_user[user_col], item_col: test_user[item_col]})
     data[user_col] = data[user_col].map(user_map)
@@ -51,7 +55,7 @@ def match_evaluation(user_embedding, item_embedding, test_user, all_item, user_c
     ground_truth = dict(zip(user_pos_item[user_col], user_pos_item[item_col]))  # user id -> ground truth
 
     print("compute topk metrics")
-    out = topk_metrics(y_true=ground_truth, y_pred=match_res, topKs=[topk])
+    out = topk_metrics(y_true=ground_truth, y_pred=match_res, topKs=[50,100,200])
     print(out)
 
 

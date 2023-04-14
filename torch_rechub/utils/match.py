@@ -7,11 +7,12 @@ from collections import OrderedDict, Counter
 from annoy import AnnoyIndex
 from .data import pad_sequences, df_to_dict
 from pymilvus import Collection,CollectionSchema,DataType,FieldSchema,connections,utility
+import datatable as dt
 
 def gen_model_input(df, user_profile, user_col, item_profile, item_col, seq_max_len, padding='pre', truncating='pre'):
     #merge user_profile and item_profile, pad history seuence feature
     df = pd.merge(df, user_profile, on=user_col, how='left')  # how=left to keep samples order same as the input
-    df = pd.merge(df, item_profile, on=item_col, how='left')
+    # df = pd.merge(df, item_profile, on=item_col, how='left')
     for col in df.columns.to_list():
         if col.startswith("hist_"):
             df[col] = pad_sequences(df[col], maxlen=seq_max_len, value=0, padding=padding, truncating=truncating).tolist()
@@ -93,10 +94,10 @@ def generate_seq_feature_match(data,
     """
     if cross_features is None:
         cross_features = []
-    if mode == 2:  # list wise learning
-        assert neg_ratio > 0, 'neg_ratio must be greater than 0 when list-wise learning'
-    elif mode == 1:  # pair wise learning
-        neg_ratio = 1
+    # if mode == 2:  # list wise learning
+    #     assert neg_ratio > 0, 'neg_ratio must be greater than 0 when list-wise learning'
+    # elif mode == 1:  # pair wise learning
+    #     neg_ratio = 1
     print("preprocess data")
     # data.sort_values(time_col, inplace=True)  #sort by time from old to new
     train_set, test_set = [], []
@@ -106,6 +107,8 @@ def generate_seq_feature_match(data,
     items_cnt_order = OrderedDict(sorted((items_cnt.items()), key=lambda x: x[1], reverse=True))  #item_id:item count
     neg_list = negative_sample(items_cnt_order, ratio=data.shape[0] * neg_ratio, method_id=sample_method)
     neg_idx = 0
+    last_col = 'neg_items'
+
     for uid, hist in tqdm.tqdm(data.groupby(user_col), desc='generate sequence features'):
         # 取出用户的历史items
         pos_list = hist[item_col].tolist()
@@ -122,7 +125,136 @@ def generate_seq_feature_match(data,
             if len(cross_features) > 0:
                 for attr_col in cross_features:  #the history of item attribute features
                     sample.append(hist[attr_col].tolist()[i])
-            if i < split_index:
+            if i < len(pos_list)-1:
+                if mode == 0:  #point-wise, the last col is label_col, include label 0 and 1
+                    last_col = "label"
+                    train_set.append(sample + [1])
+                    for _ in range(neg_ratio):
+                        sample[1] = neg_list[neg_idx]
+                        neg_idx += 1
+                        train_set.append(sample + [0])
+                elif mode == 1:  #pair-wise, the last col is neg_col, include one negative item
+                    last_col = "neg_items"
+                    for _ in range(neg_ratio):
+                        sample_copy = copy.deepcopy(sample)
+                        sample_copy.append(neg_list[neg_idx])
+                        neg_idx += 1
+                        train_set.append(sample_copy)
+                elif mode == 2:  #list-wise, the last col is neg_col, include neg_ratio negative items
+                    last_col = "neg_items"
+                    sample.append(neg_list[neg_idx: neg_idx + neg_ratio])
+                    neg_idx += neg_ratio
+                    train_set.append(sample)
+                else:
+                    raise ValueError("mode should in (0,1,2)")
+            else:
+                test_set.append(sample + [1])  #Note: if mode=1 or 2, the label col is useless.
+    
+    random.shuffle(train_set)
+    random.shuffle(test_set)
+    # dataset = []
+    # tqdm.tqdm.pandas(desc='pandas bar')
+    # def solve_one_row(row, set):
+    #     tmp_set = []
+    #     sample = [row[user_col], row[item_col]]
+    #     if len(cross_features) > 0:
+    #         for attr_col in cross_features:
+    #             sample.append(row[attr_col])
+    #     if mode == 1:
+    #         nonlocal neg_idx
+    #         for _ in range(neg_ratio):
+    #             sample_copy = copy.deepcopy(sample)
+    #             sample_copy.append(neg_list[neg_idx])
+    #             neg_idx += 1
+    #             # set.append(sample_copy)
+    #             tmp_set.append(sample_copy)
+    #     return tmp_set
+
+    
+    
+    # from pandarallel import pandarallel
+    # pandarallel.initialize(progress_bar=False)
+    # # result_list = data.parallel_apply(lambda row: solve_one_row(row, dataset), axis=1)
+    # result_list = data.progress_apply(lambda row: solve_one_row(row, dataset), axis=1)
+    # for lis in tqdm.tqdm(result_list):
+    #     for lis2 in lis:
+    #         dataset.append(lis2)
+    # # dataset.extend(result for result in result_list)
+
+    # split_index = int((data.shape[0]-1) * 0.9)
+    # random.shuffle(dataset)
+
+    # train_set = dataset[:split_index]
+    # test_set = dataset[split_index:]
+
+    print("n_train: %d, n_test: %d" % (len(train_set), len(test_set)))
+    print("%d cold start user droped " % (n_cold_user))
+
+    attr_hist_col = [col for col in cross_features]
+    df_train = pd.DataFrame(train_set,
+                            columns=[user_col, item_col] + attr_hist_col + [last_col])
+    df_test = pd.DataFrame(test_set,
+                           columns=[user_col, item_col] + attr_hist_col + [last_col])
+
+    return df_train, df_test
+
+
+def generate_seq_feature_match_v0(data,
+                               user_col,
+                               item_col,
+                               time_col,
+                               item_attribute_cols=None,
+                               sample_method=0,
+                               mode=0,
+                               neg_ratio=0,
+                               min_item=0):
+    """generate sequence feature and negative sample for match.
+    Args:
+        data (pd.DataFrame): the raw data.
+        user_col (str): the col name of user_id 
+        item_col (str): the col name of item_id 
+        time_col (str): the col name of timestamp
+        item_attribute_cols (list[str], optional): the other attribute cols of item which you want to generate sequence feature. Defaults to `[]`.
+        sample_method (int, optional): the negative sample method `{
+            0: "random sampling", 
+            1: "popularity sampling method used in word2vec", 
+            2: "popularity sampling method by `log(count+1)+1e-6`",
+            3: "tencent RALM sampling"}`. 
+            Defaults to 0.
+        mode (int, optional): the training mode, `{0:point-wise, 1:pair-wise, 2:list-wise}`. Defaults to 0.
+        neg_ratio (int, optional): negative sample ratio, >= 1. Defaults to 0.
+        min_item (int, optional): the min item each user must have. Defaults to 0.
+    Returns:
+        pd.DataFrame: split train and test data with sequence features.
+    """
+    if item_attribute_cols is None:
+        item_attribute_cols = []
+    if mode == 2:  # list wise learning
+        assert neg_ratio > 0, 'neg_ratio must be greater than 0 when list-wise learning'
+    elif mode == 1:  # pair wise learning
+        neg_ratio = 1
+    print("preprocess data")
+    data.sort_values(time_col, inplace=True)  #sort by time from old to new
+    train_set, test_set = [], []
+    n_cold_user = 0
+
+    items_cnt = Counter(data[item_col].tolist())
+    items_cnt_order = OrderedDict(sorted((items_cnt.items()), key=lambda x: x[1], reverse=True))  #item_id:item count
+    neg_list = negative_sample(items_cnt_order, ratio=data.shape[0] * neg_ratio, method_id=sample_method)
+    neg_idx = 0
+    for uid, hist in tqdm.tqdm(data.groupby(user_col), desc='generate sequence features'):
+        pos_list = hist[item_col].tolist()
+        if len(pos_list) < min_item:  #drop this user when his pos items < min_item
+            n_cold_user += 1
+            continue
+
+        for i in range(1, len(pos_list)):
+            hist_item = pos_list[:i]
+            sample = [uid, pos_list[i], hist_item, len(hist_item)]
+            if len(item_attribute_cols) > 0:
+                for attr_col in item_attribute_cols:  #the history of item attribute features
+                    sample.append(hist[attr_col].tolist()[:i])
+            if i != len(pos_list) - 1:
                 if mode == 0:  #point-wise, the last col is label_col, include label 0 and 1
                     last_col = "label"
                     train_set.append(sample + [1])
@@ -153,14 +285,13 @@ def generate_seq_feature_match(data,
     print("n_train: %d, n_test: %d" % (len(train_set), len(test_set)))
     print("%d cold start user droped " % (n_cold_user))
 
-    attr_hist_col = [col for col in cross_features]
+    attr_hist_col = ["hist_" + col for col in item_attribute_cols]
     df_train = pd.DataFrame(train_set,
-                            columns=[user_col, item_col] + attr_hist_col + [last_col])
+                            columns=[user_col, item_col, "hist_" + item_col, "histlen_" + item_col] + attr_hist_col + [last_col])
     df_test = pd.DataFrame(test_set,
-                           columns=[user_col, item_col] + attr_hist_col + [last_col])
+                           columns=[user_col, item_col, "hist_" + item_col, "histlen_" + item_col] + attr_hist_col + [last_col])
 
     return df_train, df_test
-
 
 class Annoy(object):
     """Vector matching by Annoy
