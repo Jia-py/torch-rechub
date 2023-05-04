@@ -28,7 +28,7 @@ from movielens_utils import match_evaluation
 
 def get_movielens_data(data_path, load_cache=False):
     data_type = {'click':np.int8, 'purchase': np.int8, '101':np.int32, '121':np.uint8, '122':np.uint8, '124':np.uint8, '125':np.uint8, '126':np.uint8, '127':np.uint8, '128':np.uint8, '129':np.uint8, '205':np.int32, '206':np.int16, '207':np.int32, '210':np.int32, '216':np.int32, '508':np.int16, '509':np.int32, '702':np.int32, '853':np.int32, '301':np.int8, '109_14':np.int16, '110_14':np.int32, '127_14':np.int32, '150_14':np.int32, 'D109_14': np.float16, 'D110_14': np.float16, 'D127_14': np.float16, 'D150_14': np.float16, 'D508': np.float16, 'D509': np.float16, 'D702': np.float16, 'D853': np.float16}
-    data = pd.read_csv(data_path, dtype=data_type, nrows=1000000)
+    data = pd.read_csv(data_path, dtype=data_type)
     sparse_features = ['101', '121','122','124','125','126','127','128','129','205','206','207','210','216','508','509','702','853','301','109_14','110_14','127_14','150_14']
     user_col, item_col = "101", "205"
 
@@ -45,8 +45,8 @@ def get_movielens_data(data_path, load_cache=False):
 
     # 用户和item固定的一些特征
     user_profile = data[["101","121","122","124","125","126","127","128","129"]].drop_duplicates(['101'])
-    # item_profile = data[["205"]].drop_duplicates(['205'])
-    item_profile = data[["205","206","207","210","216"]]
+    item_profile = data[["205"]].drop_duplicates(['205'])
+    # item_profile = data[["205","206","207","210","216"]]
 
     if load_cache:  #if you have run this script before and saved the preprocessed data
         x_train, y_train, x_test = np.load("/root/code/torch-rechub/examples/ranking/data/ali-ccp/saved/data_cache.npy", allow_pickle=True)
@@ -59,18 +59,18 @@ def get_movielens_data(data_path, load_cache=False):
                                                        cross_features=['301',"206","207","210","216", "508","509","702","853"],
                                                        sample_method=0,
                                                        mode=1,
-                                                       neg_ratio=6,
+                                                       neg_ratio=1,
                                                        min_item=0)
-        # 把user profile和item profile拼上去
+        # 把user profile和item profile拼上去, 这里因为item profile后面的信息不是随item_id唯一的，所以把item后面的特征放在cross_features里面了
         x_train = gen_model_input(df_train, user_profile, user_col, item_profile, item_col, seq_max_len=50)
         y_train = np.array([0] * df_train.shape[0])  #label=0 means the first pred value is positive sample
         x_test = gen_model_input(df_test, user_profile, user_col, item_profile, item_col, seq_max_len=50)
         np.save("/root/code/torch-rechub/examples/ranking/data/ali-ccp/saved/data_cache.npy", np.array((x_train, y_train, x_test), dtype=object))
 
     # 双塔模型两边的特征
-    user_cols = ["101","121","122","124","125","126","127","128","129",'301',"508","509","702","853"]
+    user_cols = ["101","121","122","124","125","126","127","128","129",'301',"508","509","702","853","206","207","210","216"]
     # user_cols = ["101","121","122","124","125","126","127","128","129"]
-    item_cols = ['205',"206","207","210","216"]
+    item_cols = ['205']
     # item_cols = ['205']
 
     user_features = [SparseFeature(name, vocab_size=feature_max_idx[name], embed_dim=16) for name in user_cols]
@@ -80,8 +80,9 @@ def get_movielens_data(data_path, load_cache=False):
         SparseFeature('neg_items', vocab_size=feature_max_idx['205'], embed_dim=16, shared_with='205')
     ] + [SparseFeature(name, vocab_size=feature_max_idx[name], embed_dim=16) for name in item_cols[1:]]
 
-    # selected_features = ['121','122','124','127','206','207','210','216','508','509','702','853','301']
-    selected_features = ['301']
+    # selected_features = ['121','122','124','125','127','206','207','210','216','508','509','702','853','301']
+    selected_features = ['121','122','124','125','127','128','129','206','210','301']
+    # selected_features = ['301']
     DAU_input_features = [SparseFeature(name, vocab_size=feature_max_idx[name], embed_dim=16) for name in selected_features]
 
     all_item = df_to_dict(item_profile)
@@ -106,13 +107,20 @@ def main(dataset_path, model_name, epoch, learning_rate, batch_size, weight_deca
     # test_user = {k: v[idxs] for k, v in test_user.items()}
     # print('test user nums:', len(idxs))
 
-    # model = YoutubeDNN(user_features, item_features, neg_item_feature, user_params={"dims": [ 128, 64, 32, 16]}, temperature=0.02)
-    # model = STAR(user_features, item_features, neg_item_feature, user_params={"dims": [32, 16]})
-    # model = DAAN(user_features, item_features, DAU_input_features, neg_item_feature)
-    # model = SAR_NET(user_features, item_features, neg_item_feature)
-    # model = M2M(user_features, item_features, neg_item_feature, user_params={"dims": [ 16]})
-    # model = ADI(user_features, item_features, neg_item_feature, user_params={"dims": [ 16]})
-    model = MMOE(user_features, item_features, neg_item_feature)
+    if model_name == 'YoutubeDNN':
+        model = YoutubeDNN(user_features, item_features, neg_item_feature, user_params={"dims": [32, 16]}, temperature=0.02)
+    elif model_name == 'STAR':
+        model = STAR(user_features, item_features, neg_item_feature, user_params={"dims": [32, 16]})
+    elif model_name == 'DAAN':
+        model = DAAN(user_features, item_features, DAU_input_features, neg_item_feature)
+    elif model_name == 'SAR_NET':
+        model = SAR_NET(user_features, item_features, neg_item_feature)
+    elif model_name == 'M2M':
+        model = M2M(user_features, item_features, neg_item_feature, user_params={"dims": [ 16]})
+    elif model_name == 'ADI':
+        model = ADI(user_features, item_features, neg_item_feature, user_params={"dims": [ 16]})
+    elif model_name == 'MMOE':
+        model = MMOE(user_features, item_features, neg_item_feature)
 
     #mode=1 means pair-wise learning
     trainer = MatchTrainer(model,
@@ -124,6 +132,8 @@ def main(dataset_path, model_name, epoch, learning_rate, batch_size, weight_deca
                            n_epoch=epoch,
                            device=device,
                            model_path=save_dir)
+
+    
 
     train_dl, test_dl, item_dl = dg.generate_dataloader(test_user, all_item, batch_size=batch_size)
     trainer.fit(train_dl)
@@ -137,9 +147,10 @@ def main(dataset_path, model_name, epoch, learning_rate, batch_size, weight_deca
     for slot_id in range(1,4):
         print('evaluation of slot_id: ', slot_id)
         idx_lis = np.where(test_user['301']==slot_id)[0]
-        test_user_cp = copy.deepcopy(test_user)
-        for key in test_user_cp:
-            test_user_cp[key] = test_user_cp[key][idx_lis]
+        # test_user_cp = copy.deepcopy(test_user)
+        # for key in test_user_cp:
+        #     test_user_cp[key] = test_user_cp[key][idx_lis]
+        test_user_cp = {key: value[idx_lis] for key, value in test_user.items()}
         user_embedding_cp = user_embedding[idx_lis]
         # match_evaluation(user_embedding_cp, item_embedding, test_user_cp, all_item, topk=50)
         # match_evaluation(user_embedding_cp, item_embedding, test_user_cp, all_item, topk=100)
@@ -151,11 +162,11 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_path', default="/root/autodl-tmp/ali_ccp_train.csv")
-    parser.add_argument('--model_name', default='dssm')
-    parser.add_argument('--epoch', type=int, default=1) 
-    parser.add_argument('--learning_rate', type=float, default=1e-4)
-    parser.add_argument('--batch_size', type=int, default=4096)  #4096
-    parser.add_argument('--weight_decay', type=float, default=1e-6)
+    parser.add_argument('--model_name', default='DAAN')
+    parser.add_argument('--epoch', type=int, default=2)
+    parser.add_argument('--learning_rate', type=float, default=1e-3)
+    parser.add_argument('--batch_size', type=int, default=8092)  #4096
+    parser.add_argument('--weight_decay', type=float, default=1e-2)
     parser.add_argument('--device', default='cuda:0')  #cuda:0
     parser.add_argument('--save_dir', default='./data/ali-ccp/saved/')
     parser.add_argument('--seed', type=int, default=2023)
