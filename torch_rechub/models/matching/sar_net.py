@@ -4,10 +4,11 @@ import torch.nn.functional as F
 from ...basic.layers import MLP, EmbeddingLayer
 
 class debias_expert_net(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, input_size):
         super().__init__()
-        self.bn = nn.BatchNorm1d(64)
-        self.linear = nn.Linear(64, 16)
+        self.bn = nn.BatchNorm1d(input_size)
+        # self.linear = nn.Linear(input_size, 16)
+        self.linear = MLP(input_size, False, [32, 16], 0.2)
 
     def forward(self, x):
         x = self.bn(x)
@@ -38,26 +39,22 @@ class SAR_NET(torch.nn.Module):
         self.mode = None
 
         self.user_embedding_output_dims = len(self.user_features) * 16
-        self.auxiliary = MLP(self.user_embedding_output_dims, False, [64,32,16], 0)
 
-        self.shared_weight = nn.Parameter(torch.empty(self.user_embedding_output_dims, 64))
-        self.shared_bias = nn.Parameter(torch.zeros(64))
+        self.slot1_weight = nn.Parameter(torch.empty(len(self.user_features), 16))
+        self.slot1_bias = nn.Parameter(torch.zeros(self.user_embedding_output_dims))
+        self.slot2_weight = nn.Parameter(torch.empty(len(self.user_features), 16))
+        self.slot2_bias = nn.Parameter(torch.zeros(self.user_embedding_output_dims))
+        self.slot3_weight = nn.Parameter(torch.empty(len(self.user_features), 16))
+        self.slot3_bias = nn.Parameter(torch.zeros(self.user_embedding_output_dims))
 
-        self.slot1_weight = nn.Parameter(torch.empty(self.user_embedding_output_dims, 64))
-        self.slot1_bias = nn.Parameter(torch.zeros(64))
-        self.slot2_weight = nn.Parameter(torch.empty(self.user_embedding_output_dims, 64))
-        self.slot2_bias = nn.Parameter(torch.zeros(64))
-        self.slot3_weight = nn.Parameter(torch.empty(self.user_embedding_output_dims, 64))
-        self.slot3_bias = nn.Parameter(torch.zeros(64))
-
-        for m in [self.shared_weight, self.slot1_weight, self.slot2_weight, self.slot3_weight]:
+        for m in [self.slot1_weight, self.slot2_weight, self.slot3_weight]:
             torch.nn.init.xavier_uniform_(m.data)
 
-        self.linear1 = MLP(5*16, False, [64, 32, 16])
-        self.linear2 = torch.nn.Linear(64, 10)
+        # self.linear1 = MLP(5*16, False, [64, 32, 16])
+        self.linear2 = torch.nn.Linear(self.user_embedding_output_dims, 10)
 
-        self.shared_expert = nn.ModuleList([debias_expert_net() for _ in range(8)])
-        self.specific_expert = nn.ModuleList([debias_expert_net() for _ in range(6)])
+        self.shared_expert = nn.ModuleList([debias_expert_net(self.user_embedding_output_dims) for _ in range(8)])
+        self.specific_expert = nn.ModuleList([debias_expert_net(self.user_embedding_output_dims) for _ in range(6)])
 
     def forward(self, x):
         user_embedding = self.user_tower(x)
@@ -78,20 +75,20 @@ class SAR_NET(torch.nn.Module):
         if self.mode == "item":
             return None
         slot_id = x['301']
-        input_user = self.embedding(x, self.user_features, squeeze_dim=True)  #[batch_size, num_features*deep_dims]
+        input_user = self.embedding(x, self.user_features, squeeze_dim=False)  #[batch_size, num_features*deep_dims]
 
         slot1_mask = (slot_id == 1)
         slot2_mask = (slot_id == 2)
         slot3_mask = (slot_id == 3)
-        slot1_output = torch.matmul(input_user, torch.multiply(self.slot1_weight, self.shared_weight))+self.slot1_bias+self.shared_bias
-        slot2_output = torch.matmul(input_user, torch.multiply(self.slot2_weight, self.shared_weight))+self.slot2_bias+self.shared_bias
-        slot3_output = torch.matmul(input_user, torch.multiply(self.slot3_weight, self.shared_weight))+self.slot3_bias+self.shared_bias
+        slot1_output = torch.mul(input_user, self.slot1_weight).reshape(input_user.shape[0], -1)+self.slot1_bias
+        slot2_output = torch.mul(input_user, self.slot2_weight).reshape(input_user.shape[0], -1)+self.slot2_bias
+        slot3_output = torch.mul(input_user, self.slot3_weight).reshape(input_user.shape[0], -1)+self.slot3_bias
         output = torch.zeros_like(slot1_output)
         output = torch.where(slot1_mask.unsqueeze(1), slot1_output, output)
         output = torch.where(slot2_mask.unsqueeze(1), slot2_output, output)
         output = torch.where(slot3_mask.unsqueeze(1), slot3_output, output) # b,64
 
-        shared_output = torch.stack([self.shared_expert[i](output) for i in range(8)], dim=1) # b,8,16
+        shared_output = torch.stack([self.shared_expert[i](output) for i in range(8)], dim=1) # b,4,16
         slot1_output = torch.stack([self.specific_expert[i](output) for i in [0,1]], dim=1) # b,2,16
         slot2_output = torch.stack([self.specific_expert[i](output) for i in [2,3]], dim=1)
         slot3_output = torch.stack([self.specific_expert[i](output) for i in [4,5]], dim=1)
@@ -114,12 +111,12 @@ class SAR_NET(torch.nn.Module):
         if self.mode == "user":
             return None
         pos_embedding = self.embedding(x, self.item_features, squeeze_dim=False)  #[batch_size, 1, embed_dim]
-        pos_embedding = self.linear1(pos_embedding.reshape(pos_embedding.shape[0],-1)).reshape(pos_embedding.shape[0],1,16)
+        # pos_embedding = self.linear1(pos_embedding.reshape(pos_embedding.shape[0],-1)).reshape(pos_embedding.shape[0],1,16)
         pos_embedding = F.normalize(pos_embedding, p=2, dim=2)
         if self.mode == "item":  #inference embedding mode
             return pos_embedding.reshape(pos_embedding.shape[0],-1)  #[batch_size, embed_dim]
         neg_embeddings = self.embedding(x, self.neg_item_feature,
-                                        squeeze_dim=False).squeeze(1)  #[batch_size, n_neg_items, embed_dim]
-        neg_embeddings = self.linear1(neg_embeddings.reshape(neg_embeddings.shape[0],-1)).reshape(neg_embeddings.shape[0],1,16)
+                                        squeeze_dim=False)  #[batch_size, n_neg_items, embed_dim]
+        # neg_embeddings = self.linear1(neg_embeddings.reshape(neg_embeddings.shape[0],-1)).reshape(neg_embeddings.shape[0],1,16)
         neg_embeddings = F.normalize(neg_embeddings, p=2, dim=2)
         return torch.cat((pos_embedding, neg_embeddings), dim=1)  #[batch_size, 1+n_neg_items, embed_dim]

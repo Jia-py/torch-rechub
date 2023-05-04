@@ -27,7 +27,7 @@ class MatchTrainer(object):
         self,
         model,
         mode=0,
-        optimizer_fn=torch.optim.Adam,
+        optimizer_fn=torch.optim.AdamW,
             optimizer_params=None,
         scheduler_fn=None,
         scheduler_params=None,

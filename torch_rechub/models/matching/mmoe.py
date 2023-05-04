@@ -9,12 +9,12 @@ class Expert(nn.Module):
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, output_size)
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.3)
+        # self.dropout = nn.Dropout(0.2)
 
     def forward(self, x):
         out = self.fc1(x)
         out = self.relu(out)
-        out = self.dropout(out)
+        # out = self.dropout(out)
         out = self.fc2(out)
         return out
 
@@ -24,12 +24,12 @@ class Tower(nn.Module):
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, output_size)
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.4)
+        # self.dropout = nn.Dropout(0.2)
         self.sigmoid = nn.Sigmoid()
     def forward(self, x):
         out = self.fc1(x)
         out = self.relu(out)
-        out = self.dropout(out)
+        # out = self.dropout(out)
         out = self.fc2(out)
         return out
 
@@ -60,9 +60,9 @@ class MMOE(torch.nn.Module):
 
         self.input_size = self.user_embedding_output_dims
         self.num_experts = 8
-        self.experts_out = 64
+        self.experts_out = 32
         self.experts_hidden = 32
-        self.towers_hidden = 64
+        self.towers_hidden = 32
 
         self.experts = nn.ModuleList([Expert(self.input_size, self.experts_out, self.experts_hidden) for _ in range(self.num_experts)])
         self.w_gates = nn.ParameterList([nn.Parameter(torch.randn(self.input_size, self.num_experts), requires_grad=True) for i in range(3)])
@@ -123,12 +123,12 @@ class MMOE(torch.nn.Module):
         if self.mode == "user":
             return None
         pos_embedding = self.embedding(x, self.item_features, squeeze_dim=False)  #[batch_size, 1, embed_dim]
-        pos_embedding = self.linear1(pos_embedding.reshape(pos_embedding.shape[0],-1)).reshape(pos_embedding.shape[0],1,16)
+        # pos_embedding = self.linear1(pos_embedding.reshape(pos_embedding.shape[0],-1)).reshape(pos_embedding.shape[0],1,16)
         pos_embedding = F.normalize(pos_embedding, p=2, dim=2)
         if self.mode == "item":  #inference embedding mode
             return pos_embedding.reshape(pos_embedding.shape[0],-1)  #[batch_size, embed_dim]
         neg_embeddings = self.embedding(x, self.neg_item_feature,
-                                        squeeze_dim=False).squeeze(1)  #[batch_size, n_neg_items, embed_dim]
-        neg_embeddings = self.linear1(neg_embeddings.reshape(neg_embeddings.shape[0],-1)).reshape(neg_embeddings.shape[0],1,16)
+                                        squeeze_dim=False)  #[batch_size, n_neg_items, embed_dim]
+        # neg_embeddings = self.linear1(neg_embeddings.reshape(neg_embeddings.shape[0],-1)).reshape(neg_embeddings.shape[0],1,16)
         neg_embeddings = F.normalize(neg_embeddings, p=2, dim=2)
         return torch.cat((pos_embedding, neg_embeddings), dim=1)  #[batch_size, 1+n_neg_items, embed_dim]

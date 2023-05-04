@@ -255,7 +255,8 @@ class MLP(nn.Module):
         for i_dim in dims:
             layers.append(nn.Linear(input_dim, i_dim))
             layers.append(nn.BatchNorm1d(i_dim))
-            layers.append(activation_layer(activation))
+            # layers.append(activation_layer(activation))
+            layers.append(nn.LeakyReLU(inplace=True))
             layers.append(nn.Dropout(p=dropout))
             input_dim = i_dim
         if output_layer:
