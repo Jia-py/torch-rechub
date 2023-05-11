@@ -1,4 +1,6 @@
 import sys
+
+sys.path.append("../..")
 import os
 import numpy as np
 import pandas as pd
@@ -11,7 +13,6 @@ from torch_rechub.utils.match import generate_seq_feature_match, gen_model_input
 from torch_rechub.utils.data import df_to_dict, MatchDataGenerator
 from movielens_utils import match_evaluation
 
-sys.path.append("../..")
 
 
 def get_movielens_data(data_path, load_cache=False):

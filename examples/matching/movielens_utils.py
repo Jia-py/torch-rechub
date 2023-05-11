@@ -11,7 +11,7 @@ from collections import Counter
 import tqdm
 
 
-def match_evaluation(user_embedding, item_embedding, test_user, all_item, user_col='101', item_col='205',
+def match_evaluation(user_embedding, item_embedding, test_user, all_item, user_col='user_id', item_col='video_id',
                      raw_id_maps="/root/code/torch-rechub/examples/ranking/data/ali-ccp/saved/raw_id_maps.npy", topk=10):
     print("evaluate embedding matching on test data")
     annoy = Annoy(n_trees=10)
@@ -42,11 +42,15 @@ def match_evaluation(user_embedding, item_embedding, test_user, all_item, user_c
             items_idx, items_scores = annoy.query(v=user_emb, n=topk)  #the index of topk match items
             match_res[user_map[user_id]] = np.vectorize(item_map.get)(all_item[item_col][items_idx])
 
+
     #get ground truth
     print("generate ground truth")
     # 额外加的，去重
     # for k in match_res:
     #     match_res[k] = np.unique(match_res[k]).tolist()[:200]
+    # from collections import OrderedDict
+    # for k in tqdm.tqdm(match_res):
+    #     match_res[k] = list(OrderedDict.fromkeys(match_res[k]))[:200]
 
     data = pd.DataFrame({user_col: test_user[user_col], item_col: test_user[item_col]})
     data[user_col] = data[user_col].map(user_map)
@@ -55,8 +59,12 @@ def match_evaluation(user_embedding, item_embedding, test_user, all_item, user_c
     ground_truth = dict(zip(user_pos_item[user_col], user_pos_item[item_col]))  # user id -> ground truth
 
     print("compute topk metrics")
-    out = topk_metrics(y_true=ground_truth, y_pred=match_res, topKs=[50,100,200])
+    if topk == 50:
+        out = topk_metrics(y_true=ground_truth, y_pred=match_res, topKs=[50])
+    elif topk == 200:
+        out = topk_metrics(y_true=ground_truth, y_pred=match_res, topKs=[50,100,200])
     print(out)
+    return out
 
 
 def get_item_sample_weight(items):
