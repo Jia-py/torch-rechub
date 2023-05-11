@@ -62,7 +62,8 @@ def negative_sample(items_cnt_order, ratio, method_id=0):
     return neg_items
 
 
-def generate_seq_feature_match(data,
+def generate_seq_feature_match(data_pos,
+                                data_all,
                                user_col,
                                item_col,
                             #    time_col,
@@ -103,13 +104,20 @@ def generate_seq_feature_match(data,
     train_set, test_set = [], []
     n_cold_user = 0
 
-    items_cnt = Counter(data[item_col].tolist())
+    items_cnt = Counter(data_all[item_col].tolist())
     items_cnt_order = OrderedDict(sorted((items_cnt.items()), key=lambda x: x[1], reverse=True))  #item_id:item count
-    neg_list = negative_sample(items_cnt_order, ratio=data.shape[0] * neg_ratio, method_id=sample_method)
+    neg_list = negative_sample(items_cnt_order, ratio=data_pos.shape[0] * neg_ratio, method_id=sample_method)
     neg_idx = 0
     last_col = 'neg_items'
 
-    for uid, hist in tqdm.tqdm(data.groupby(user_col), desc='generate sequence features'):
+    print('start groupby')
+
+    user = data_pos[user_col].unique().tolist()
+    for u_idx in tqdm.tqdm(range(len(user))):
+        uid = user[u_idx]
+        hist = data_pos[data_pos[user_col] == uid]
+
+    # for uid, hist in tqdm.tqdm(data_pos.groupby(user_col), desc='generate sequence features'):
         # 取出用户的历史items
         pos_list = hist[item_col].tolist()
         if len(pos_list) < min_item:  #drop this user when his pos items < min_item
@@ -119,9 +127,9 @@ def generate_seq_feature_match(data,
         split_index = int((len(pos_list)-1) * 0.8)
 
         for i in range(1, len(pos_list)):
-            # hist_item = pos_list[:i]
-            # sample = [uid, pos_list[i], hist_item, len(hist_item)]
-            sample = [uid, pos_list[i]]
+            hist_item = pos_list[:i]
+            sample = [uid, pos_list[i], hist_item, len(hist_item)]
+            # sample = [uid, pos_list[i]]
             if len(cross_features) > 0:
                 for attr_col in cross_features:  #the history of item attribute features
                     sample.append(hist[attr_col].tolist()[i])
@@ -192,9 +200,9 @@ def generate_seq_feature_match(data,
 
     attr_hist_col = [col for col in cross_features]
     df_train = pd.DataFrame(train_set,
-                            columns=[user_col, item_col] + attr_hist_col + [last_col])
+                            columns=[user_col, item_col, "hist_"+item_col, "histlen_"+item_col] + attr_hist_col + [last_col])
     df_test = pd.DataFrame(test_set,
-                           columns=[user_col, item_col] + attr_hist_col + [last_col])
+                           columns=[user_col, item_col, "hist_"+item_col, "histlen_"+item_col] + attr_hist_col + [last_col])
 
     return df_train, df_test
 
@@ -311,7 +319,7 @@ class Annoy(object):
         self._annoy = AnnoyIndex(X.shape[1], metric=self._metric)
         for i, x in enumerate(X):
             self._annoy.add_item(i, x.tolist())
-        self._annoy.build(self._n_trees)
+        self._annoy.build(self._n_trees, n_jobs=-1)
 
     def set_query_arguments(self, search_k):
         self._search_k = search_k

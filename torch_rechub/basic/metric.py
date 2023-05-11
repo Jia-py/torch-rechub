@@ -157,9 +157,9 @@ def topk_metrics(y_true, y_pred, topKs=None):
 					# # -----------
 					if pred_array[i][j] in true_array[i]:
 						hit_tmp += 1.
-						# # ------
-						# break
-						# # ------
+						# ------
+						break
+						# ------
 						if mrr_flag:
 							mrr_flag = False
 							mrr_tmp = 1. / (1 + j)
@@ -170,6 +170,9 @@ def topk_metrics(y_true, y_pred, topKs=None):
 				hits += hit_tmp
 				mrrs += mrr_tmp
 				recalls += hit_tmp / len(true_array[i])
+				if hit_tmp / len(true_array[i]) > 1:
+					print('wrong here')
+					pass
 				precisions += hit_tmp / topKs[idx]
 				if idcg_tmp != 0:
 					ndcgs += dcg_tmp / idcg_tmp

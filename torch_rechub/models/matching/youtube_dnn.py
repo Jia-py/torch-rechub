@@ -35,7 +35,7 @@ class YoutubeDNN(torch.nn.Module):
         self.user_mlp = MLP(self.user_dims, output_layer=False, **user_params)
         self.mode = None
 
-        self.linear1 = MLP(16, False, [32, 128, 64, 32, 16])
+        self.linear1 = MLP(3*16, False, [64, 32, 16])
 
     def forward(self, x):
         user_embedding = self.user_tower(x)
@@ -66,12 +66,12 @@ class YoutubeDNN(torch.nn.Module):
         if self.mode == "user":
             return None
         pos_embedding = self.embedding(x, self.item_features, squeeze_dim=False)  #[batch_size, 1, embed_dim]
-        # pos_embedding = self.linear1(pos_embedding.reshape(pos_embedding.shape[0],-1)).reshape(pos_embedding.shape[0],1,16)
+        pos_embedding = self.linear1(pos_embedding.reshape(pos_embedding.shape[0],-1)).reshape(pos_embedding.shape[0],1,16)
         pos_embedding = F.normalize(pos_embedding, p=2, dim=2)
         if self.mode == "item":  #inference embedding mode
             return pos_embedding.reshape(pos_embedding.shape[0],-1)  #[batch_size, embed_dim]
         neg_embeddings = self.embedding(x, self.neg_item_feature,
                                         squeeze_dim=False)  #[batch_size, n_neg_items, embed_dim]
-        # neg_embeddings = self.linear1(neg_embeddings.reshape(neg_embeddings.shape[0],-1)).reshape(neg_embeddings.shape[0],1,16)
+        neg_embeddings = self.linear1(neg_embeddings.reshape(neg_embeddings.shape[0],-1)).reshape(neg_embeddings.shape[0],1,16)
         neg_embeddings = F.normalize(neg_embeddings, p=2, dim=2)
         return torch.cat((pos_embedding, neg_embeddings), dim=1)  #[batch_size, 1+n_neg_items, embed_dim]

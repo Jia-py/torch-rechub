@@ -173,3 +173,13 @@ examples/ranking/data/ali-ccp/saved/data_cache_100w.npy
 examples/ranking/data/ali-ccp/saved/data_cache_500w_new.npy
 examples/ranking/data/ali-ccp/saved/data_cache_500w.npy
 examples/ranking/data/ali-ccp/saved/data_cache_4000w.npy
+examples/matching/nohup.out
+examples/matching/data/ali-ccp/saved/ADI/model.pth
+examples/matching/data/ali-ccp/saved/DAAN/model.pth
+examples/matching/data/ali-ccp/saved/M2M/model.pth
+examples/matching/data/ali-ccp/saved/MMOE/model.pth
+examples/matching/data/ali-ccp/saved/SAR_NET/model.pth
+examples/matching/data/ali-ccp/saved/STAR/model.pth
+examples/matching/data/ali-ccp/saved/YoutubeDNN/model.pth
+examples/matching/data/kuairand/saved/data_cache.npy
+examples/matching/data/kuairand/saved/raw_id_maps.npy

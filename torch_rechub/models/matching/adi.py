@@ -29,10 +29,10 @@ class ADI(torch.nn.Module):
 
         self.user_embedding_output_dims = len(self.user_features) * 16
 
-        self.shared_mlp = MLP(self.user_embedding_output_dims, output_layer=False, dims=[16, 16])
-        self.slot1_mlp = MLP(self.user_embedding_output_dims, output_layer=False, dims=[16, 16])
-        self.slot2_mlp = MLP(self.user_embedding_output_dims, output_layer=False, dims=[16, 16])
-        self.slot3_mlp = MLP(self.user_embedding_output_dims, output_layer=False, dims=[16, 16])
+        self.shared_mlp = MLP(self.user_embedding_output_dims, output_layer=False, dims=[64, 32])
+        self.slot1_mlp = MLP(self.user_embedding_output_dims, output_layer=False, dims=[64, 32])
+        self.slot2_mlp = MLP(self.user_embedding_output_dims, output_layer=False, dims=[64, 32])
+        self.slot3_mlp = MLP(self.user_embedding_output_dims, output_layer=False, dims=[64, 32])
 
         self.fusion_slot1_specific_W = nn.Parameter(torch.empty(16, 1))
         self.fusion_slot2_specific_W = nn.Parameter(torch.empty(16, 1))
@@ -43,14 +43,14 @@ class ADI(torch.nn.Module):
 
         # ------------------------------------------------------------------------------
 
-        self.shared_weight = nn.Parameter(torch.empty(48, 16))
+        self.shared_weight = nn.Parameter(torch.empty(3*32, 16))
         self.shared_bias = nn.Parameter(torch.zeros(16))
 
-        self.slot1_weight = nn.Parameter(torch.empty(48, 16))
+        self.slot1_weight = nn.Parameter(torch.empty(3*32, 16))
         self.slot1_bias = nn.Parameter(torch.zeros(16))
-        self.slot2_weight = nn.Parameter(torch.empty(48, 16))
+        self.slot2_weight = nn.Parameter(torch.empty(3*32, 16))
         self.slot2_bias = nn.Parameter(torch.zeros(16))
-        self.slot3_weight = nn.Parameter(torch.empty(48, 16))
+        self.slot3_weight = nn.Parameter(torch.empty(3*32, 16))
         self.slot3_bias = nn.Parameter(torch.zeros(16))
 
 
@@ -63,7 +63,7 @@ class ADI(torch.nn.Module):
         for m in [self.shared_weight, self.slot1_weight, self.slot2_weight, self.slot3_weight, self.se_weight1, self.se_weight2, self.se_weight3, self.fusion_slot1_specific_W, self.fusion_slot2_specific_W, self.fusion_slot3_specific_W, self.fusion_slot1_shared_W, self.fusion_slot2_shared_W, self.fusion_slot3_shared_W]:
             torch.nn.init.xavier_uniform_(m.data)
 
-        self.linear1 = MLP(5*16, False, [64, 32, 16])
+        self.linear1 = MLP(3 * 16, False, [32, 16])
 
     def forward(self, x):
         user_embedding = self.user_tower(x)
@@ -110,7 +110,7 @@ class ADI(torch.nn.Module):
         specific_output = torch.zeros_like(slot1_output)
         specific_output = torch.where(slot1_mask.unsqueeze(1), slot1_output, specific_output)
         specific_output = torch.where(slot2_mask.unsqueeze(1), slot2_output, specific_output)
-        specific_output = torch.where(slot3_mask.unsqueeze(1), slot3_output, specific_output)
+        specific_output = torch.where(slot3_mask.unsqueeze(1), slot3_output, specific_output)  # b,32
 
         slot1_specific_beta = torch.matmul(slot, self.fusion_slot1_specific_W) # b, 1
         slot2_specific_beta = torch.matmul(slot, self.fusion_slot2_specific_W) # b, 1
@@ -127,7 +127,7 @@ class ADI(torch.nn.Module):
         shared_beta = torch.where(slot2_mask.unsqueeze(1), slot2_shared_beta, shared_beta)
         shared_beta = torch.where(slot3_mask.unsqueeze(1), slot3_shared_beta, shared_beta)
 
-        fusion_output = torch.concat([specific_output * specific_beta, torch.mul(shared_output * shared_beta, specific_output * specific_beta), shared_output * shared_beta], dim=1) # b, 3*16
+        fusion_output = torch.concat([specific_output * specific_beta, torch.mul(shared_output * shared_beta, specific_output * specific_beta), shared_output * shared_beta], dim=1) # b, 3*32
 
 
         slot1_output = torch.matmul(fusion_output, torch.multiply(self.slot1_weight, self.shared_weight))+self.slot1_bias+self.shared_bias
@@ -148,12 +148,12 @@ class ADI(torch.nn.Module):
         if self.mode == "user":
             return None
         pos_embedding = self.embedding(x, self.item_features, squeeze_dim=False)  #[batch_size, 1, embed_dim]
-        # pos_embedding = self.linear1(pos_embedding.reshape(pos_embedding.shape[0],-1)).reshape(pos_embedding.shape[0],1,16)
+        pos_embedding = self.linear1(pos_embedding.reshape(pos_embedding.shape[0],-1)).reshape(pos_embedding.shape[0],1,16)
         pos_embedding = F.normalize(pos_embedding, p=2, dim=2)
         if self.mode == "item":  #inference embedding mode
             return pos_embedding.reshape(pos_embedding.shape[0],-1)  #[batch_size, embed_dim]
         neg_embeddings = self.embedding(x, self.neg_item_feature,
                                         squeeze_dim=False)  #[batch_size, n_neg_items, embed_dim]
-        # neg_embeddings = self.linear1(neg_embeddings.reshape(neg_embeddings.shape[0],-1)).reshape(neg_embeddings.shape[0],1,16)
+        neg_embeddings = self.linear1(neg_embeddings.reshape(neg_embeddings.shape[0],-1)).reshape(neg_embeddings.shape[0],1,16)
         neg_embeddings = F.normalize(neg_embeddings, p=2, dim=2)
         return torch.cat((pos_embedding, neg_embeddings), dim=1)  #[batch_size, 1+n_neg_items, embed_dim]

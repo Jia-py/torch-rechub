@@ -50,12 +50,12 @@ class DAAN(torch.nn.Module):
         self.DAU_input_feature = DAU_input_feature
 
         self.user_embedding_output_dims = len(self.user_features) * 16
-        self.DAU_fs = DAU(len(self.DAU_input_feature), 16, [32], [len(self.user_features), len(self.user_features)])
-        self.DAU_tr = DAU(len(self.DAU_input_feature), 16,[32], [self.user_embedding_output_dims, 16])
+        self.DAU_fs = DAU(len(self.DAU_input_feature), 16, [128, 64], [len(self.user_features), len(self.user_features)])
+        self.DAU_tr = DAU(len(self.DAU_input_feature), 16,[128, 64], [self.user_embedding_output_dims, 16])
 
-        # self.output_mlp = MLP(32, False, [16])
+        self.output_mlp = MLP(32, False, [32, 16])
 
-        self.linear1 = MLP(5*16, False, [16])
+        self.linear1 = MLP(3 * 16, False, [128, 64, 32, 16])
         
     def forward(self, x):
         user_embedding = self.user_tower(x)
@@ -99,13 +99,12 @@ class DAAN(torch.nn.Module):
         if self.mode == "user":
             return None
         pos_embedding = self.embedding(x, self.item_features, squeeze_dim=False)  #[batch_size, 1, embed_dim]
-        # b = pos_embedding.shape[0]
-        # pos_embedding = pos_embedding.reshape(b,-1)
-        # pos_embedding = self.linear1(pos_embedding).reshape(b, 1,-1)
+        b = pos_embedding.shape[0]
+        pos_embedding = self.linear1(pos_embedding.reshape(b,-1)).reshape(b, 1,-1)
         pos_embedding = F.normalize(pos_embedding, p=2, dim=2)
         if self.mode == "item":  #inference embedding mode
             return pos_embedding.reshape(pos_embedding.shape[0],-1)  #[batch_size, embed_dim]
         neg_embeddings = self.embedding(x, self.neg_item_feature, squeeze_dim=False)  #[batch_size, n_neg_items, embed_dim]
-        # neg_embeddings = self.linear1(neg_embeddings).reshape(b,-1,16)
+        neg_embeddings = self.linear1(neg_embeddings.reshape(b,-1)).reshape(b,-1,16)
         neg_embeddings = F.normalize(neg_embeddings, p=2, dim=2)
         return torch.cat((pos_embedding, neg_embeddings), dim=1)  #[batch_size, 1+n_neg_items, embed_dim]

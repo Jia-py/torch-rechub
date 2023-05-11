@@ -7,8 +7,8 @@ class debias_expert_net(torch.nn.Module):
     def __init__(self, input_size):
         super().__init__()
         self.bn = nn.BatchNorm1d(input_size)
-        # self.linear = nn.Linear(input_size, 16)
-        self.linear = MLP(input_size, False, [32, 16], 0.2)
+        self.linear = nn.Linear(input_size, 16)
+        # self.linear = MLP(input_size, False, [32, 16], 0.2)
 
     def forward(self, x):
         x = self.bn(x)
@@ -50,7 +50,7 @@ class SAR_NET(torch.nn.Module):
         for m in [self.slot1_weight, self.slot2_weight, self.slot3_weight]:
             torch.nn.init.xavier_uniform_(m.data)
 
-        # self.linear1 = MLP(5*16, False, [64, 32, 16])
+        self.linear1 = MLP(3*16, False, [128, 64, 32, 16])
         self.linear2 = torch.nn.Linear(self.user_embedding_output_dims, 10)
 
         self.shared_expert = nn.ModuleList([debias_expert_net(self.user_embedding_output_dims) for _ in range(8)])
@@ -111,12 +111,12 @@ class SAR_NET(torch.nn.Module):
         if self.mode == "user":
             return None
         pos_embedding = self.embedding(x, self.item_features, squeeze_dim=False)  #[batch_size, 1, embed_dim]
-        # pos_embedding = self.linear1(pos_embedding.reshape(pos_embedding.shape[0],-1)).reshape(pos_embedding.shape[0],1,16)
+        pos_embedding = self.linear1(pos_embedding.reshape(pos_embedding.shape[0],-1)).reshape(pos_embedding.shape[0],1,16)
         pos_embedding = F.normalize(pos_embedding, p=2, dim=2)
         if self.mode == "item":  #inference embedding mode
             return pos_embedding.reshape(pos_embedding.shape[0],-1)  #[batch_size, embed_dim]
         neg_embeddings = self.embedding(x, self.neg_item_feature,
                                         squeeze_dim=False)  #[batch_size, n_neg_items, embed_dim]
-        # neg_embeddings = self.linear1(neg_embeddings.reshape(neg_embeddings.shape[0],-1)).reshape(neg_embeddings.shape[0],1,16)
+        neg_embeddings = self.linear1(neg_embeddings.reshape(neg_embeddings.shape[0],-1)).reshape(neg_embeddings.shape[0],1,16)
         neg_embeddings = F.normalize(neg_embeddings, p=2, dim=2)
         return torch.cat((pos_embedding, neg_embeddings), dim=1)  #[batch_size, 1+n_neg_items, embed_dim]

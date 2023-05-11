@@ -4,6 +4,8 @@ import tqdm
 from sklearn.metrics import roc_auc_score
 from ..basic.callback import EarlyStopper
 from ..basic.loss_func import BPRLoss
+from examples.matching.movielens_utils import match_evaluation
+
 
 
 class MatchTrainer(object):
@@ -27,7 +29,7 @@ class MatchTrainer(object):
         self,
         model,
         mode=0,
-        optimizer_fn=torch.optim.AdamW,
+        optimizer_fn=torch.optim.Adam,
             optimizer_params=None,
         scheduler_fn=None,
         scheduler_params=None,
@@ -36,6 +38,11 @@ class MatchTrainer(object):
         device="cpu",
             gpus=None,
         model_path="./",
+        test_dl=None,
+        item_dl = None,
+        test_user = None,
+        all_item = None,
+        model_name = None
     ):
         self.model = model  # for uniform weights save method in one gpu or multi gpu
         if gpus is None:
@@ -68,6 +75,17 @@ class MatchTrainer(object):
         self.n_epoch = n_epoch
         self.early_stopper = EarlyStopper(patience=earlystop_patience)
         self.model_path = model_path
+
+        self.test_dl = test_dl
+        self.item_dl = item_dl
+        self.test_user = test_user
+        self.all_item = all_item
+
+        self.valid_score = 0.0
+
+        self.patience = 0
+        self.early_stop = False
+        self.model_name = model_name
 
     def train_one_epoch(self, data_loader, log_interval=10):
         self.model.train()
@@ -107,6 +125,28 @@ class MatchTrainer(object):
             if (i + 1) % log_interval == 0:
                 tk0.set_postfix(loss=total_loss / log_interval)
                 total_loss = 0
+            
+            if (i) > 50 and (i) % 25 == 0:
+                self.model.eval()
+                user_embedding = self.inference_embedding(model=self.model, mode="user", data_loader=self.test_dl, model_path=self.model_path)
+                item_embedding = self.inference_embedding(model=self.model, mode="item", data_loader=self.item_dl, model_path=self.model_path)
+                out = match_evaluation(user_embedding, item_embedding, self.test_user, self.all_item, user_col='101', item_col='205', topk=200)
+                tmp_recall = (float(out['Recall'][0][11:]) + float(out['Recall'][1][11:]) + float(out['Recall'][2][11:]))/3
+                if tmp_recall > self.valid_score:
+                    self.valid_score = tmp_recall
+                    torch.save(self.model.state_dict(), os.path.join(self.model_path, self.model_name, "model.pth"))
+                    print("save model with recall@50: {}".format(tmp_recall))
+                    self.patience = 0
+                else:
+                    self.patience += 1
+                    print("patience: {}".format(self.patience))
+                    if self.patience >= 5:
+                        print("early stop")
+                        self.early_stop = True
+                        return
+                
+                self.model.train()
+                self.model.mode = None
 
     def fit(self, train_dataloader, val_dataloader=None):
         for epoch_i in range(self.n_epoch):
@@ -124,8 +164,9 @@ class MatchTrainer(object):
                     print(f'validation: best auc: {self.early_stopper.best_auc}')
                     self.model.load_state_dict(self.early_stopper.best_weights)
                     break
-        torch.save(self.model.state_dict(), os.path.join(self.model_path,
-                                                            "model.pth"))  #save best auc model
+            if self.early_stop:
+                break
+        # torch.save(self.model.state_dict(), os.path.join(self.model_path, "model.pth"))  #save best auc model
 
 
     def evaluate(self, model, data_loader):
@@ -162,8 +203,8 @@ class MatchTrainer(object):
         model.eval()
         predicts = []
         with torch.no_grad():
-            tk0 = tqdm.tqdm(data_loader, desc="%s inference" % (mode), smoothing=0, mininterval=1.0)
-            for i, x_dict in enumerate(tk0):
+            # tk0 = tqdm.tqdm(data_loader, desc="%s inference" % (mode), smoothing=0, mininterval=1.0)
+            for i, x_dict in enumerate(data_loader):
                 x_dict = {k: v.to(self.device) for k, v in x_dict.items()}
                 y_pred = model(x_dict)
                 predicts.append(y_pred.data)
