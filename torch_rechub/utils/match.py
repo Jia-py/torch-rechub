@@ -9,10 +9,13 @@ from .data import pad_sequences, df_to_dict
 from pymilvus import Collection,CollectionSchema,DataType,FieldSchema,connections,utility
 import datatable as dt
 
-def gen_model_input(df, user_profile, user_col, item_profile, item_col, seq_max_len, padding='pre', truncating='pre'):
+def gen_model_input(df, user_profile, user_col, item_profile, neg_item_profile, item_col, seq_max_len, padding='pre', truncating='pre'):
     #merge user_profile and item_profile, pad history seuence feature
     df = pd.merge(df, user_profile, on=user_col, how='left')  # how=left to keep samples order same as the input
-    # df = pd.merge(df, item_profile, on=item_col, how='left')
+    df = pd.merge(df, item_profile, on=item_col, how='left')
+
+    df = pd.merge(df, neg_item_profile, on='neg_items', how='left')
+
     for col in df.columns.to_list():
         if col.startswith("hist_"):
             df[col] = pad_sequences(df[col], maxlen=seq_max_len, value=0, padding=padding, truncating=truncating).tolist()

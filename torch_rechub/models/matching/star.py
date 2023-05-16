@@ -40,12 +40,12 @@ class STAR(torch.nn.Module):
         self.slot3_weight = nn.Parameter(torch.empty(self.user_embedding_output_dims, 64))
         self.slot3_bias = nn.Parameter(torch.zeros(64))
 
-        self.mlp = MLP(64, False, [64, 16], 0)
+        self.mlp = MLP(64, False, [16], 0)
 
         for m in [self.shared_weight, self.slot1_weight, self.slot2_weight, self.slot3_weight]:
             torch.nn.init.xavier_uniform_(m.data)
 
-        self.linear1 = MLP(3 * 16, False, [128, 64, 32, 16])
+        self.linear1 = MLP(16, False, [16])
 
     def forward(self, x):
         user_embedding = self.user_tower(x)

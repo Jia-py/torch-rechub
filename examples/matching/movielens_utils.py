@@ -61,6 +61,8 @@ def match_evaluation(user_embedding, item_embedding, test_user, all_item, user_c
     print("compute topk metrics")
     if topk == 50:
         out = topk_metrics(y_true=ground_truth, y_pred=match_res, topKs=[50])
+    elif topk == 20:
+        out = topk_metrics(y_true=ground_truth, y_pred=match_res, topKs=[20])
     elif topk == 200:
         out = topk_metrics(y_true=ground_truth, y_pred=match_res, topKs=[50,100,200])
     print(out)

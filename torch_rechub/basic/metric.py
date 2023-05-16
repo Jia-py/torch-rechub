@@ -157,9 +157,9 @@ def topk_metrics(y_true, y_pred, topKs=None):
 					# # -----------
 					if pred_array[i][j] in true_array[i]:
 						hit_tmp += 1.
-						# ------
-						break
-						# ------
+						# # ------
+						# break
+						# # ------
 						if mrr_flag:
 							mrr_flag = False
 							mrr_tmp = 1. / (1 + j)

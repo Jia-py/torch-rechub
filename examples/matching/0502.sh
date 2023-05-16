@@ -1,11 +1,9 @@
-python run_ml_youtube_dnn_copy.py --model_name=DAAN >log/output_daan_ss.log
-python run_ml_youtube_dnn_copy.py --model_name=SAR_NET >log/output_sar.log
-python run_ml_youtube_dnn_copy.py --model_name=MMOE >log/output_mmoe.log
-
-python run_ml_youtube_dnn_copy.py --model_name=DAAN >log/output_daan_ss_2.log
-python run_ml_youtube_dnn_copy.py --model_name=SAR_NET >log/output_sar_2.log
-python run_ml_youtube_dnn_copy.py --model_name=MMOE >log/output_mmoe_2.log
-
-python run_ml_youtube_dnn_copy.py --model_name=DAAN >log/output_daan_ss_2.log
-python run_ml_youtube_dnn_copy.py --model_name=SAR_NET >log/output_sar_2.log
-python run_ml_youtube_dnn_copy.py --model_name=MMOE >log/output_mmoe_2.log
+python kuairand.py --model_name=DAAN >log/output_daan_1.log 2>&1 
+python kuairand.py --model_name=DAAN >log/output_daan_2.log 2>&1 
+python kuairand.py --model_name=DAAN >log/output_daan_3.log 2>&1 
+python kuairand.py --model_name=DAAN >log/output_daan_4.log 2>&1 
+python kuairand.py --model_name=DAAN >log/output_daan_5.log 2>&1 
+python kuairand.py --model_name=DAAN >log/output_daan_6.log 2>&1 
+python kuairand.py --model_name=DAAN >log/output_daan_7.log 2>&1 
+python kuairand.py --model_name=DAAN >log/output_daan_8.log 2>&1 
+python kuairand.py --model_name=DAAN >log/output_daan_9.log 2>&1 

@@ -43,18 +43,18 @@ class ADI(torch.nn.Module):
 
         # ------------------------------------------------------------------------------
 
-        self.shared_weight = nn.Parameter(torch.empty(3*32, 16))
-        self.shared_bias = nn.Parameter(torch.zeros(16))
+        self.shared_weight = nn.Parameter(torch.empty(3*32, 32))
+        self.shared_bias = nn.Parameter(torch.zeros(32))
 
-        self.slot1_weight = nn.Parameter(torch.empty(3*32, 16))
-        self.slot1_bias = nn.Parameter(torch.zeros(16))
-        self.slot2_weight = nn.Parameter(torch.empty(3*32, 16))
-        self.slot2_bias = nn.Parameter(torch.zeros(16))
-        self.slot3_weight = nn.Parameter(torch.empty(3*32, 16))
-        self.slot3_bias = nn.Parameter(torch.zeros(16))
+        self.slot1_weight = nn.Parameter(torch.empty(3*32, 32))
+        self.slot1_bias = nn.Parameter(torch.zeros(32))
+        self.slot2_weight = nn.Parameter(torch.empty(3*32, 32))
+        self.slot2_bias = nn.Parameter(torch.zeros(32))
+        self.slot3_weight = nn.Parameter(torch.empty(3*32, 32))
+        self.slot3_bias = nn.Parameter(torch.zeros(32))
 
 
-        self.mlp = MLP(32, False, [32, 16], 0)
+        self.mlp = MLP(32, False, [64, 16], 0)
 
         self.se_weight1 = nn.Parameter(torch.empty(len(self.user_features), len(self.user_features)))
         self.se_weight2 = nn.Parameter(torch.empty(len(self.user_features), len(self.user_features)))
@@ -63,7 +63,7 @@ class ADI(torch.nn.Module):
         for m in [self.shared_weight, self.slot1_weight, self.slot2_weight, self.slot3_weight, self.se_weight1, self.se_weight2, self.se_weight3, self.fusion_slot1_specific_W, self.fusion_slot2_specific_W, self.fusion_slot3_specific_W, self.fusion_slot1_shared_W, self.fusion_slot2_shared_W, self.fusion_slot3_shared_W]:
             torch.nn.init.xavier_uniform_(m.data)
 
-        self.linear1 = MLP(3 * 16, False, [32, 16])
+        self.linear1 = MLP(16, False, [16])
 
     def forward(self, x):
         user_embedding = self.user_tower(x)
@@ -85,7 +85,7 @@ class ADI(torch.nn.Module):
             return None
         slot_id = x['301']
         input_user = self.embedding(x, self.user_features, squeeze_dim=True)  #[batch_size, num_features*deep_dims]
-        slot = input_user.reshape(input_user.shape[0], len(self.user_features), 16)[:,9,:] # b,16
+        slot = input_user.reshape(input_user.shape[0], len(self.user_features), 16)[:,-1,:] # b,16
 
         slot1_mask = (slot_id == 1)
         slot2_mask = (slot_id == 2)
@@ -137,7 +137,7 @@ class ADI(torch.nn.Module):
         output = torch.where(slot1_mask.unsqueeze(1), slot1_output, output)
         output = torch.where(slot2_mask.unsqueeze(1), slot2_output, output)
         output = torch.where(slot3_mask.unsqueeze(1), slot3_output, output)
-        # output = self.mlp(output) # b,16
+        output = self.mlp(output) # b,16
         user_embedding = (output).unsqueeze(1) # b,1,16
         user_embedding = F.normalize(user_embedding, p=2, dim=2)
         if self.mode == "user":

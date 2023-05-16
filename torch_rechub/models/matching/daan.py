@@ -50,12 +50,12 @@ class DAAN(torch.nn.Module):
         self.DAU_input_feature = DAU_input_feature
 
         self.user_embedding_output_dims = len(self.user_features) * 16
-        self.DAU_fs = DAU(len(self.DAU_input_feature), 16, [128, 64], [len(self.user_features), len(self.user_features)])
-        self.DAU_tr = DAU(len(self.DAU_input_feature), 16,[128, 64], [self.user_embedding_output_dims, 16])
+        self.DAU_fs = DAU(len(self.DAU_input_feature), 16, [8,16], [len(self.user_features), len(self.user_features)])
+        self.DAU_tr = DAU(len(self.DAU_input_feature), 16,[8,16], [self.user_embedding_output_dims, 64])
 
-        self.output_mlp = MLP(32, False, [32, 16])
+        self.output_mlp = MLP(64, False, [16])
 
-        self.linear1 = MLP(3 * 16, False, [128, 64, 32, 16])
+        self.linear1 = MLP(3 * 16, False, [16])
         
     def forward(self, x):
         user_embedding = self.user_tower(x)
@@ -89,7 +89,7 @@ class DAAN(torch.nn.Module):
 
         user_embedding = tr_output.reshape(b, 1, -1)
 
-        # user_embedding = self.output_mlp(tr_output).reshape(b,1,-1)  #[batch_size, 1, embed_dim]
+        user_embedding = self.output_mlp(tr_output).reshape(b,1,-1)  #[batch_size, 1, embed_dim]
         user_embedding = F.normalize(user_embedding, p=2, dim=2)
         if self.mode == "user":
             return user_embedding.squeeze(1)  #inference embedding mode -> [batch_size, embed_dim]

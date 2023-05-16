@@ -47,8 +47,8 @@ def get_movielens_data(data_path, load_cache=False):
 
     # 用户和item固定的一些特征
     user_profile = data[["101","121","122","124","125","126","127","128","129"]].drop_duplicates(['101'])
-    item_profile = data[["205", "207", "216"]].drop_duplicates()
-    # item_profile = data[["205"]].drop_duplicates()
+    # item_profile = data[["205", "207", "216"]].drop_duplicates(['205'])
+    item_profile = data[["205"]].drop_duplicates()
     # item_profile = data[["205","206","207","210","216"]].drop_duplicates()
 
     if load_cache:  #if you have run this script before and saved the preprocessed data
@@ -76,8 +76,8 @@ def get_movielens_data(data_path, load_cache=False):
     # user_cols = ["101"]
     # user_cols = ["101","121","122","124","125","126","127","128","129"]
     # item_cols = ['205',"206","207","210","216"]
-    item_cols = ['205', "207", "216"]
-    # item_cols = ['205']
+    # item_cols = ['205', "207", "216"]
+    item_cols = ['205']
 
     user_features = [SparseFeature(name, vocab_size=feature_max_idx[name], embed_dim=16) for name in user_cols]
     # user_features += [
@@ -94,15 +94,15 @@ def get_movielens_data(data_path, load_cache=False):
     ] + [SparseFeature(name, vocab_size=feature_max_idx[name], embed_dim=16) for name in item_cols[1:]]
 
     # selected_features = ['121','122','124','125','127','206','207','210','216','508','509','702','853','301']
-    # selected_features = ['122','124','125','127','129','301']
-    selected_features = ['301']
+    selected_features = ['122','124','125','127','129','301']
+    # selected_features = ['301']
     DAU_input_features = [SparseFeature(name, vocab_size=feature_max_idx[name], embed_dim=16, shared_with=name) for name in selected_features]
 
     all_item = df_to_dict(item_profile)
     test_user = x_test
     # 只选1w个用户
     # for key in test_user:
-    #     test_user[key] = test_user[key][:30000]
+    #     test_user[key] = test_user[key][:10000]
     return user_features, item_features, DAU_input_features, neg_item_feature, x_train, y_train, all_item, test_user
 
 
@@ -185,7 +185,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_path', default="/root/autodl-tmp/ali_ccp_train.csv")
     parser.add_argument('--model_name', default='DAAN')
-    parser.add_argument('--epoch', type=int, default=2)
+    parser.add_argument('--epoch', type=int, default=1)
     parser.add_argument('--learning_rate', type=float, default=1e-4)
     parser.add_argument('--batch_size', type=int, default=4096)  #4096
     parser.add_argument('--weight_decay', type=float, default=1e-5)

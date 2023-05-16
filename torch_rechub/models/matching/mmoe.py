@@ -59,10 +59,10 @@ class MMOE(torch.nn.Module):
         self.user_embedding_output_dims = len(self.user_features) * 16
 
         self.input_size = self.user_embedding_output_dims
-        self.num_experts = 8
-        self.experts_out = 32
-        self.experts_hidden = 32
-        self.towers_hidden = 32
+        self.num_experts = 16
+        self.experts_out = 64
+        self.experts_hidden = 64
+        self.towers_hidden = 64
 
         self.experts = nn.ModuleList([Expert(self.input_size, self.experts_out, self.experts_hidden) for _ in range(self.num_experts)])
         self.w_gates = nn.ParameterList([nn.Parameter(torch.randn(self.input_size, self.num_experts), requires_grad=True) for i in range(3)])
@@ -70,7 +70,7 @@ class MMOE(torch.nn.Module):
 
         self.softmax = nn.Softmax(dim=1)
 
-        self.linear1 = MLP(3 * 16, False, [128, 64, 32, 16])
+        self.linear1 = MLP(16, False, [ 16])
 
     def forward(self, x):
         user_embedding = self.user_tower(x)

@@ -29,10 +29,10 @@ class M2M(torch.nn.Module):
 
         self.user_embedding_output_dims = len(self.user_features) * 16
         
-        self.mlp1 = MLP(16, output_layer=False, dims=[32, self.user_embedding_output_dims*16])
-        self.mlp2 = MLP(16, False, [32, 16*16])
+        self.mlp1 = MLP(16, output_layer=False, dims=[128, self.user_embedding_output_dims*32])
+        self.mlp2 = MLP(16, False, [ 32*16])
 
-        self.linear1 = MLP(3 * 16, False, [32, 16])
+        self.linear1 = MLP(16, False, [16])
 
     def forward(self, x):
         user_embedding = self.user_tower(x)
@@ -53,13 +53,13 @@ class M2M(torch.nn.Module):
         if self.mode == "item":
             return None
         input_user = self.embedding(x, self.user_features, squeeze_dim=True)  #[batch_size, num_features*deep_dims]
-        slot = input_user.reshape(input_user.shape[0], len(self.user_features), 16)[:,9,:]
+        slot = input_user.reshape(input_user.shape[0], len(self.user_features), 16)[:,-1,:]
 
-        weight1 = self.mlp1(slot).reshape(slot.shape[0], self.user_embedding_output_dims, 16)
+        weight1 = self.mlp1(slot).reshape(slot.shape[0], self.user_embedding_output_dims, 32)
         input_user = torch.reshape(input_user, (input_user.shape[0], 1, -1))
         user_embedding = torch.matmul(input_user, weight1).reshape(input_user.shape[0], 1, -1) # b,1,16
 
-        weight2 = self.mlp2(slot).reshape(slot.shape[0], 16, 16)
+        weight2 = self.mlp2(slot).reshape(slot.shape[0], 32, 16)
         user_embedding = torch.matmul(user_embedding, weight2).reshape(user_embedding.shape[0], 1, -1) # b,1,16
 
         user_embedding = user_embedding + torch.mean(input_user.reshape(input_user.shape[0], len(self.user_features), 16), dim=1, keepdim=True)

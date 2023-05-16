@@ -183,3 +183,10 @@ examples/matching/data/ali-ccp/saved/STAR/model.pth
 examples/matching/data/ali-ccp/saved/YoutubeDNN/model.pth
 examples/matching/data/kuairand/saved/data_cache.npy
 examples/matching/data/kuairand/saved/raw_id_maps.npy
+examples/matching/data/kuairand/saved/ADI/model.pth
+examples/matching/data/kuairand/saved/DAAN/model.pth
+examples/matching/data/kuairand/saved/M2M/model.pth
+examples/matching/data/kuairand/saved/MMOE/model.pth
+examples/matching/data/kuairand/saved/SAR_NET/model.pth
+examples/matching/data/kuairand/saved/STAR/model.pth
+examples/matching/data/kuairand/saved/YoutubeDNN/model.pth

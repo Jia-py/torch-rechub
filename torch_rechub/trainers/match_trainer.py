@@ -29,7 +29,7 @@ class MatchTrainer(object):
         self,
         model,
         mode=0,
-        optimizer_fn=torch.optim.Adam,
+        optimizer_fn=torch.optim.AdamW,
             optimizer_params=None,
         scheduler_fn=None,
         scheduler_params=None,
@@ -126,12 +126,12 @@ class MatchTrainer(object):
                 tk0.set_postfix(loss=total_loss / log_interval)
                 total_loss = 0
             
-            if (i) > 50 and (i) % 25 == 0:
+            if (i+1) > 100 and (i+1) % 100 == 0:
                 self.model.eval()
                 user_embedding = self.inference_embedding(model=self.model, mode="user", data_loader=self.test_dl, model_path=self.model_path)
                 item_embedding = self.inference_embedding(model=self.model, mode="item", data_loader=self.item_dl, model_path=self.model_path)
-                out = match_evaluation(user_embedding, item_embedding, self.test_user, self.all_item, user_col='101', item_col='205', topk=200)
-                tmp_recall = (float(out['Recall'][0][11:]) + float(out['Recall'][1][11:]) + float(out['Recall'][2][11:]))/3
+                out = match_evaluation(user_embedding, item_embedding, self.test_user, self.all_item, user_col='101', item_col='205', topk=20)
+                tmp_recall = float(out['Recall'][0][11:])
                 if tmp_recall > self.valid_score:
                     self.valid_score = tmp_recall
                     torch.save(self.model.state_dict(), os.path.join(self.model_path, self.model_name, "model.pth"))
@@ -140,10 +140,10 @@ class MatchTrainer(object):
                 else:
                     self.patience += 1
                     print("patience: {}".format(self.patience))
-                    if self.patience >= 5:
-                        print("early stop")
-                        self.early_stop = True
-                        return
+                    # if self.patience >= 3:
+                    #     print("early stop")
+                    #     self.early_stop = True
+                    #     return
                 
                 self.model.train()
                 self.model.mode = None

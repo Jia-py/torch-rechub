@@ -50,7 +50,7 @@ class SAR_NET(torch.nn.Module):
         for m in [self.slot1_weight, self.slot2_weight, self.slot3_weight]:
             torch.nn.init.xavier_uniform_(m.data)
 
-        self.linear1 = MLP(3*16, False, [128, 64, 32, 16])
+        self.linear1 = MLP(16, False, [64, 32, 16])
         self.linear2 = torch.nn.Linear(self.user_embedding_output_dims, 10)
 
         self.shared_expert = nn.ModuleList([debias_expert_net(self.user_embedding_output_dims) for _ in range(8)])
