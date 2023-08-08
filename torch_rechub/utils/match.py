@@ -7,7 +7,7 @@ from collections import OrderedDict, Counter
 from annoy import AnnoyIndex
 from .data import pad_sequences, df_to_dict
 from pymilvus import Collection,CollectionSchema,DataType,FieldSchema,connections,utility
-import datatable as dt
+# import datatable as dt
 
 def gen_model_input(df, user_profile, user_col, item_profile, neg_item_profile, item_col, seq_max_len, padding='pre', truncating='pre'):
     #merge user_profile and item_profile, pad history seuence feature
@@ -69,7 +69,7 @@ def generate_seq_feature_match(data_pos,
                                 data_all,
                                user_col,
                                item_col,
-                            #    time_col,
+                               time_col,
                                cross_features=None,
                                sample_method=0,
                                mode=0,
@@ -103,7 +103,7 @@ def generate_seq_feature_match(data_pos,
     # elif mode == 1:  # pair wise learning
     #     neg_ratio = 1
     print("preprocess data")
-    # data.sort_values(time_col, inplace=True)  #sort by time from old to new
+    data_pos.sort_values(time_col, inplace=True)  #sort by time from old to new
     train_set, test_set = [], []
     n_cold_user = 0
 
@@ -127,7 +127,7 @@ def generate_seq_feature_match(data_pos,
             n_cold_user += 1
             continue
 
-        split_index = int((len(pos_list)-1) * 0.8)
+        # split_index = int((len(pos_list)-1) * 0.8)
 
         for i in range(1, len(pos_list)):
             hist_item = pos_list[:i]
@@ -136,7 +136,9 @@ def generate_seq_feature_match(data_pos,
             if len(cross_features) > 0:
                 for attr_col in cross_features:  #the history of item attribute features
                     sample.append(hist[attr_col].tolist()[i])
-            if i < len(pos_list)-1:
+            # if i < len(pos_list)-1:
+            # 按照日期划分训练集和测试集
+            if hist['date'].tolist()[i] <= 24:
                 if mode == 0:  #point-wise, the last col is label_col, include label 0 and 1
                     last_col = "label"
                     train_set.append(sample + [1])

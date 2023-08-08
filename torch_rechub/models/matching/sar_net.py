@@ -50,7 +50,7 @@ class SAR_NET(torch.nn.Module):
         for m in [self.slot1_weight, self.slot2_weight, self.slot3_weight]:
             torch.nn.init.xavier_uniform_(m.data)
 
-        self.linear1 = MLP(16, False, [64, 32, 16])
+        self.linear1 = MLP(11 * 16, False, [64, 32, 16])
         self.linear2 = torch.nn.Linear(self.user_embedding_output_dims, 10)
 
         self.shared_expert = nn.ModuleList([debias_expert_net(self.user_embedding_output_dims) for _ in range(8)])
@@ -74,7 +74,7 @@ class SAR_NET(torch.nn.Module):
     def user_tower(self, x):
         if self.mode == "item":
             return None
-        slot_id = x['301']
+        slot_id = x['tab']
         input_user = self.embedding(x, self.user_features, squeeze_dim=False)  #[batch_size, num_features*deep_dims]
 
         slot1_mask = (slot_id == 1)

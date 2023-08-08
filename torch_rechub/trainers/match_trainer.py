@@ -126,11 +126,12 @@ class MatchTrainer(object):
                 tk0.set_postfix(loss=total_loss / log_interval)
                 total_loss = 0
             
-            if (i+1) > 100 and (i+1) % 100 == 0:
+            if (i+1) > 150 and (i+1) % 30 == 0:
                 self.model.eval()
                 user_embedding = self.inference_embedding(model=self.model, mode="user", data_loader=self.test_dl, model_path=self.model_path)
                 item_embedding = self.inference_embedding(model=self.model, mode="item", data_loader=self.item_dl, model_path=self.model_path)
-                out = match_evaluation(user_embedding, item_embedding, self.test_user, self.all_item, user_col='101', item_col='205', topk=20)
+                out = match_evaluation(user_embedding, item_embedding, self.test_user, self.all_item, user_col='user_id', item_col='video_id', \
+                                       raw_id_maps='/root/code/torch-rechub/examples/matching/data/kuairand/saved/raw_id_maps.npy', topk=50)
                 tmp_recall = float(out['Recall'][0][11:])
                 if tmp_recall > self.valid_score:
                     self.valid_score = tmp_recall
@@ -140,10 +141,10 @@ class MatchTrainer(object):
                 else:
                     self.patience += 1
                     print("patience: {}".format(self.patience))
-                    # if self.patience >= 3:
-                    #     print("early stop")
-                    #     self.early_stop = True
-                    #     return
+                    if self.patience >= 5:
+                        print("early stop")
+                        self.early_stop = True
+                        return
                 
                 self.model.train()
                 self.model.mode = None

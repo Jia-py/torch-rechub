@@ -55,7 +55,7 @@ class DAAN(torch.nn.Module):
 
         self.output_mlp = MLP(64, False, [16])
 
-        self.linear1 = MLP(3 * 16, False, [16])
+        self.linear1 = MLP(11 * 16, False, [16]) # item_cols * 16
         
     def forward(self, x):
         user_embedding = self.user_tower(x)

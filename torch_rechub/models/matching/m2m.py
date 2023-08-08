@@ -32,7 +32,7 @@ class M2M(torch.nn.Module):
         self.mlp1 = MLP(16, output_layer=False, dims=[128, self.user_embedding_output_dims*32])
         self.mlp2 = MLP(16, False, [ 32*16])
 
-        self.linear1 = MLP(16, False, [16])
+        self.linear1 = MLP(11 * 16, False, [16])
 
     def forward(self, x):
         user_embedding = self.user_tower(x)

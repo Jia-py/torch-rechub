@@ -35,7 +35,7 @@ class YoutubeDNN(torch.nn.Module):
         self.user_mlp = MLP(self.user_dims, output_layer=False, **user_params)
         self.mode = None
 
-        self.linear1 = MLP(16, False, [16])
+        self.linear1 = MLP(11 * 16, False, [16])
 
     def forward(self, x):
         user_embedding = self.user_tower(x)

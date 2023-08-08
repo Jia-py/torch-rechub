@@ -87,7 +87,7 @@ def get_movielens_data(data_path, load_cache=False):
                                                        data,
                                                        user_col,
                                                        item_col,
-                                                    #    time_col='101',
+                                                       time_col='date',
                                                        cross_features=['date', 'hourmin',
                                                             'long_view', 'play_time_ms', 'duration_ms', 'profile_stay_time',
                                                             'comment_stay_time', 'is_profile_enter', 'is_rand', 'tab'],
@@ -265,7 +265,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_path', default="/root/autodl-tmp/KuaiRand-pure-preprocessed.csv")
     parser.add_argument('--model_name', default='DAAN')
-    parser.add_argument('--epoch', type=int, default=5)
+    parser.add_argument('--epoch', type=int, default=3)
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--batch_size', type=int, default=2048)  #4096
     parser.add_argument('--weight_decay', type=float, default=1e-3)

@@ -63,7 +63,7 @@ class ADI(torch.nn.Module):
         for m in [self.shared_weight, self.slot1_weight, self.slot2_weight, self.slot3_weight, self.se_weight1, self.se_weight2, self.se_weight3, self.fusion_slot1_specific_W, self.fusion_slot2_specific_W, self.fusion_slot3_specific_W, self.fusion_slot1_shared_W, self.fusion_slot2_shared_W, self.fusion_slot3_shared_W]:
             torch.nn.init.xavier_uniform_(m.data)
 
-        self.linear1 = MLP(16, False, [16])
+        self.linear1 = MLP(11 * 16, False, [16])
 
     def forward(self, x):
         user_embedding = self.user_tower(x)
@@ -83,7 +83,7 @@ class ADI(torch.nn.Module):
     def user_tower(self, x):
         if self.mode == "item":
             return None
-        slot_id = x['301']
+        slot_id = x['tab']
         input_user = self.embedding(x, self.user_features, squeeze_dim=True)  #[batch_size, num_features*deep_dims]
         slot = input_user.reshape(input_user.shape[0], len(self.user_features), 16)[:,-1,:] # b,16
 

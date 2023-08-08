@@ -70,7 +70,7 @@ class MMOE(torch.nn.Module):
 
         self.softmax = nn.Softmax(dim=1)
 
-        self.linear1 = MLP(16, False, [ 16])
+        self.linear1 = MLP(11 * 16, False, [ 16])
 
     def forward(self, x):
         user_embedding = self.user_tower(x)
@@ -90,7 +90,7 @@ class MMOE(torch.nn.Module):
     def user_tower(self, x):
         if self.mode == "item":
             return None
-        slot_id = x['301']
+        slot_id = x['tab']
         input_user = self.embedding(x, self.user_features, squeeze_dim=True)  #[batch_size, num_features*deep_dims]
 
         slot1_mask = (slot_id == 1)
