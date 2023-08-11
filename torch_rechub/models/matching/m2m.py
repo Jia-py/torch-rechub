@@ -17,7 +17,7 @@ class M2M(torch.nn.Module):
         temperature (float): temperature factor for similarity score, default to 1.0.
     """
 
-    def __init__(self, user_features, item_features, neg_item_feature, user_params):
+    def __init__(self, user_features, item_features, neg_item_feature,  DAU_input_features, user_params):
         super().__init__()
         self.user_features = user_features
         self.item_features = item_features
@@ -27,12 +27,16 @@ class M2M(torch.nn.Module):
         self.user_mlp = MLP(self.user_dims, output_layer=False, **user_params)
         self.mode = None
 
+        self.DAU_input_features = DAU_input_features
+        self.num_domain_features = len(DAU_input_features)
+
         self.user_embedding_output_dims = len(self.user_features) * 16
         
-        self.mlp1 = MLP(16, output_layer=False, dims=[128, self.user_embedding_output_dims*32])
-        self.mlp2 = MLP(16, False, [ 32*16])
+        self.mlp1 = MLP(self.num_domain_features * 16, output_layer=False, dims=[512, self.user_embedding_output_dims*32])
+        self.mlp2 = MLP(self.num_domain_features * 16, False, [ 32*16])
 
         self.linear1 = MLP(11 * 16, False, [16])
+
 
     def forward(self, x):
         user_embedding = self.user_tower(x)
@@ -53,13 +57,14 @@ class M2M(torch.nn.Module):
         if self.mode == "item":
             return None
         input_user = self.embedding(x, self.user_features, squeeze_dim=True)  #[batch_size, num_features*deep_dims]
-        slot = input_user.reshape(input_user.shape[0], len(self.user_features), 16)[:,-1,:]
+        DAU_input = self.embedding(x, self.DAU_input_features, squeeze_dim=True).reshape(input_user.shape[0], len(self.DAU_input_features) * 16)
+        # slot = input_user.reshape(input_user.shape[0], len(self.user_features), 16)[:,-1,:]
 
-        weight1 = self.mlp1(slot).reshape(slot.shape[0], self.user_embedding_output_dims, 32)
+        weight1 = self.mlp1(DAU_input).reshape(DAU_input.shape[0], self.user_embedding_output_dims, 32)
         input_user = torch.reshape(input_user, (input_user.shape[0], 1, -1))
-        user_embedding = torch.matmul(input_user, weight1).reshape(input_user.shape[0], 1, -1) # b,1,16
+        user_embedding = torch.matmul(input_user, weight1).reshape(input_user.shape[0], 1, -1) # b,1,32
 
-        weight2 = self.mlp2(slot).reshape(slot.shape[0], 32, 16)
+        weight2 = self.mlp2(DAU_input).reshape(DAU_input.shape[0], 32, 16)
         user_embedding = torch.matmul(user_embedding, weight2).reshape(user_embedding.shape[0], 1, -1) # b,1,16
 
         user_embedding = user_embedding + torch.mean(input_user.reshape(input_user.shape[0], len(self.user_features), 16), dim=1, keepdim=True)

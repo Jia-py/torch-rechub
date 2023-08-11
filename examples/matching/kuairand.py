@@ -182,7 +182,7 @@ def main(dataset_path, model_name, epoch, learning_rate, batch_size, weight_deca
     elif model_name == 'SAR_NET':
         model = SAR_NET(user_features, item_features, neg_item_feature)
     elif model_name == 'M2M':
-        model = M2M(user_features, item_features, neg_item_feature, user_params={"dims": [ 16]})
+        model = M2M(user_features, item_features, neg_item_feature, DAU_input_features, user_params={"dims": [ 16]})
     elif model_name == 'ADI':
         model = ADI(user_features, item_features, neg_item_feature, user_params={"dims": [ 16]})
     elif model_name == 'MMOE':
@@ -264,7 +264,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_path', default="/root/autodl-tmp/KuaiRand-pure-preprocessed.csv")
-    parser.add_argument('--model_name', default='DAAN')
+    parser.add_argument('--model_name', default='M2M')
     parser.add_argument('--epoch', type=int, default=3)
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--batch_size', type=int, default=2048)  #4096
